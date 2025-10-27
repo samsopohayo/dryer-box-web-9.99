@@ -1,0 +1,48 @@
+{
+  "location": {
+    "city": "Sumenep",
+    "lat": -7.00133,
+    "lon": 113.86968
+  },
+  "config": {
+    "targetMoisture": 15,
+    "targetHumidityMin": 30,
+    "targetHumidityMax": 40
+  },
+  "sensor": {
+    "suhu": 0,
+    "humidity": 0,
+    "kelembaban": 0,
+    "berat": 0,
+    "berat_awal": 0
+  },
+  "status": {
+    "pengeringan": "Siap",
+    "pemanas": "Mati",
+    "kipas": "Mati",
+    "exhaust": "Tutup",
+    "door_open": false,
+    "temp_protection": false,
+    "humidity_control": false
+  },
+  "control": {
+    "manual_heater_enable": false,
+    "manual_heater_state": false,
+    "manual_fan_enable": false,
+    "manual_fan_state": false,
+    "manual_exhaust_enable": false,
+    "manual_exhaust_state": false
+  },
+  "timer": {
+    "enabled": false,
+    "duration": 0,
+    "remaining": 0
+  },
+  "system": {
+    "status": "ready",
+    "last_update": "",
+    "current_session": "",
+    "process_status": "idle",
+    "last_error": "None"
+  }
+}

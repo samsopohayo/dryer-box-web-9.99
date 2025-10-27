@@ -1,0 +1,37 @@
+{
+  "name": "pengering-cabai-web",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "chart.js": "^4.5.0",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "chartjs-plugin-zoom": "^2.2.0",
+    "date-fns": "^3.3.1",
+    "dayjs": "^1.11.18",
+    "firebase": "^10.9.0",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
+    "lucide-vue-next": "^0.544.0",
+    "pinia": "^2.1.7",
+    "recharts": "^2.12.2",
+    "vue": "^3.4.21",
+    "vue-chartjs": "^5.3.2",
+    "vue-router": "^4.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "autoprefixer": "^10.4.18",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.4.20",
+    "vue-tsc": "^2.0.6"
+  }
+}
