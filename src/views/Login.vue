@@ -1,4 +1,5 @@
-// FILE: src/views/Login.vue // ============================================
+// FILE: src/views/Login.vue (UPDATED with Forgot Password link) //
+============================================
 <template>
   <div
     class="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-gray-100"
@@ -24,9 +25,17 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2"
-            >Password</label
-          >
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-sm font-medium text-gray-700"
+              >Password</label
+            >
+            <router-link
+              to="/forgot-password"
+              class="text-sm text-primary hover:underline font-medium"
+            >
+              Lupa password?
+            </router-link>
+          </div>
           <input
             v-model="password"
             type="password"

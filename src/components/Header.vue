@@ -36,35 +36,149 @@
           </div>
 
           <!-- Notification Bell -->
-          <button
-            @click="toggleNotifications"
-            class="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
-          >
-            <svg
-              class="w-6 h-6 text-gray-700 dark:text-gray-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div class="relative" ref="notificationRef">
+            <button
+              @click="toggleNotifications"
+              class="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-              />
-            </svg>
-            <span
-              v-if="notificationStore.unreadCount > 0"
-              class="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center"
+              <svg
+                class="w-6 h-6 text-gray-700 dark:text-gray-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                />
+              </svg>
+              <span
+                v-if="notificationStore.unreadCount > 0"
+                class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-semibold"
+              >
+                {{
+                  notificationStore.unreadCount > 9
+                    ? "9+"
+                    : notificationStore.unreadCount
+                }}
+              </span>
+            </button>
+
+            <!-- Notification Panel -->
+            <transition
+              enter-active-class="transition ease-out duration-200"
+              enter-from-class="opacity-0 scale-95"
+              enter-to-class="opacity-100 scale-100"
+              leave-active-class="transition ease-in duration-150"
+              leave-from-class="opacity-100 scale-100"
+              leave-to-class="opacity-0 scale-95"
             >
-              {{ notificationStore.unreadCount }}
-            </span>
-          </button>
+              <div
+                v-if="showNotifications"
+                class="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto"
+              >
+                <div
+                  class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-800 z-10"
+                >
+                  <h3 class="font-bold text-gray-800 dark:text-white">
+                    Notifikasi
+                  </h3>
+                  <div class="flex items-center space-x-2">
+                    <button
+                      @click="notificationStore.markAllAsRead"
+                      class="text-sm text-blue-600 hover:underline"
+                    >
+                      Tandai semua dibaca
+                    </button>
+                    <button
+                      @click="showNotifications = false"
+                      class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
+                    >
+                      <svg
+                        class="w-5 h-5 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  v-if="notificationStore.notifications.length === 0"
+                  class="p-8 text-center text-gray-500"
+                >
+                  <svg
+                    class="w-16 h-16 mx-auto mb-4 text-gray-300"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+                    />
+                  </svg>
+                  <p class="text-sm">Tidak ada notifikasi</p>
+                </div>
+
+                <div
+                  v-for="notif in notificationStore.notifications"
+                  :key="notif.id"
+                  @click="handleNotificationClick(notif.id)"
+                  class="p-4 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition"
+                  :class="{ 'bg-blue-50 dark:bg-blue-900/20': !notif.read }"
+                >
+                  <div class="flex items-start space-x-3">
+                    <div class="flex-shrink-0 mt-1">
+                      <div
+                        class="w-2 h-2 rounded-full"
+                        :class="{
+                          'bg-blue-500': notif.type === 'info',
+                          'bg-yellow-500': notif.type === 'warning',
+                          'bg-red-500': notif.type === 'error',
+                          'bg-green-500': notif.type === 'success',
+                        }"
+                      ></div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p
+                        class="font-semibold text-gray-800 dark:text-white text-sm"
+                      >
+                        {{ notif.title }}
+                      </p>
+                      <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                        {{ notif.message }}
+                      </p>
+                      <p class="text-xs text-gray-400 mt-2">
+                        {{ formatTime(notif.timestamp) }}
+                      </p>
+                    </div>
+                    <div v-if="!notif.read" class="flex-shrink-0">
+                      <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </div>
 
           <!-- Dark Mode Toggle -->
           <button
             @click="themeStore.toggleTheme"
             class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+            title="Toggle dark mode"
           >
             <svg
               v-if="!themeStore.isDark"
@@ -96,94 +210,61 @@
             </svg>
           </button>
 
-          <button
-            @click="showMenu = !showMenu"
-            class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
-          >
-            <svg
-              class="w-6 h-6 text-gray-700 dark:text-gray-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <!-- Menu Button -->
+          <div class="relative" ref="menuRef">
+            <button
+              @click="toggleMenu"
+              class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 6h16M4 12h16m-7 6h7"
-              />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
+              <svg
+                class="w-6 h-6 text-gray-700 dark:text-gray-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 6h16M4 12h16m-7 6h7"
+                />
+              </svg>
+            </button>
 
-    <!-- Menu Dropdown -->
-    <div
-      v-if="showMenu"
-      class="absolute right-4 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700"
-    >
-      <button
-        @click="logout"
-        class="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 font-semibold"
-      >
-        Keluar
-      </button>
-    </div>
-
-    <!-- Notification Panel -->
-    <div
-      v-if="showNotifications"
-      class="absolute right-4 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto"
-    >
-      <div
-        class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center"
-      >
-        <h3 class="font-bold text-gray-800 dark:text-white">Notifikasi</h3>
-        <button
-          @click="notificationStore.markAllAsRead"
-          class="text-sm text-blue-600 hover:underline"
-        >
-          Tandai semua dibaca
-        </button>
-      </div>
-
-      <div
-        v-if="notificationStore.notifications.length === 0"
-        class="p-8 text-center text-gray-500"
-      >
-        Tidak ada notifikasi
-      </div>
-
-      <div
-        v-for="notif in notificationStore.notifications"
-        :key="notif.id"
-        @click="notificationStore.markAsRead(notif.id)"
-        class="p-4 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-        :class="{ 'bg-blue-50 dark:bg-blue-900': !notif.read }"
-      >
-        <div class="flex items-start space-x-3">
-          <div class="flex-shrink-0">
-            <div
-              class="w-2 h-2 mt-2 rounded-full"
-              :class="{
-                'bg-blue-500': notif.type === 'info',
-                'bg-yellow-500': notif.type === 'warning',
-                'bg-red-500': notif.type === 'error',
-                'bg-green-500': notif.type === 'success',
-              }"
-            ></div>
-          </div>
-          <div class="flex-1">
-            <p class="font-semibold text-gray-800 dark:text-white">
-              {{ notif.title }}
-            </p>
-            <p class="text-sm text-gray-600 dark:text-gray-300">
-              {{ notif.message }}
-            </p>
-            <p class="text-xs text-gray-400 mt-1">
-              {{ formatTime(notif.timestamp) }}
-            </p>
+            <!-- Menu Dropdown -->
+            <transition
+              enter-active-class="transition ease-out duration-100"
+              enter-from-class="opacity-0 scale-95"
+              enter-to-class="opacity-100 scale-100"
+              leave-active-class="transition ease-in duration-75"
+              leave-from-class="opacity-100 scale-100"
+              leave-to-class="opacity-0 scale-95"
+            >
+              <div
+                v-if="showMenu"
+                class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700"
+              >
+                <button
+                  @click="logout"
+                  class="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 font-semibold rounded-lg transition flex items-center space-x-2"
+                >
+                  <svg
+                    class="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                    />
+                  </svg>
+                  <span>Keluar</span>
+                </button>
+              </div>
+            </transition>
           </div>
         </div>
       </div>
@@ -192,7 +273,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h } from "vue";
+import { ref, computed, h, onMounted, onBeforeUnmount } from "vue";
 import { useRoute } from "vue-router";
 import { useDryerStore } from "@/stores/dryer";
 import { useTimerStore } from "@/stores/timer";
@@ -211,6 +292,8 @@ const notificationStore = useNotificationStore();
 
 const showMenu = ref(false);
 const showNotifications = ref(false);
+const notificationRef = ref<HTMLElement | null>(null);
+const menuRef = ref<HTMLElement | null>(null);
 
 const currentPage = computed(() => {
   const pages: Record<string, string> = {
@@ -343,6 +426,15 @@ const toggleNotifications = () => {
   showMenu.value = false;
 };
 
+const toggleMenu = () => {
+  showMenu.value = !showMenu.value;
+  showNotifications.value = false;
+};
+
+const handleNotificationClick = (id: string) => {
+  notificationStore.markAsRead(id);
+};
+
 const formatTime = (timestamp: number) => {
   const now = Date.now();
   const diff = now - timestamp;
@@ -362,4 +454,34 @@ const logout = () => {
   authStore.logout();
   showMenu.value = false;
 };
+
+// Click outside handler
+const handleClickOutside = (event: MouseEvent) => {
+  // Close notifications if click outside
+  if (
+    showNotifications.value &&
+    notificationRef.value &&
+    !notificationRef.value.contains(event.target as Node)
+  ) {
+    showNotifications.value = false;
+  }
+
+  // Close menu if click outside
+  if (
+    showMenu.value &&
+    menuRef.value &&
+    !menuRef.value.contains(event.target as Node)
+  ) {
+    showMenu.value = false;
+  }
+};
+
+// Setup event listeners
+onMounted(() => {
+  document.addEventListener("click", handleClickOutside);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("click", handleClickOutside);
+});
 </script>

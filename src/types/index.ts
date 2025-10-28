@@ -1,5 +1,6 @@
 // FILE: src/types/index.ts
 // ============================================
+
 export interface ConfigData {
   targetMoisture: number;
   targetHumidityMin: number;
@@ -44,8 +45,6 @@ export interface TimerData {
   duration: number;
   remaining: number;
 }
-
-
 
 export interface SessionInfo {
   session_id: string;
