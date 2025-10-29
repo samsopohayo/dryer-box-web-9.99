@@ -2,17 +2,17 @@
   <aside
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
-    class="bg-secondary dark:bg-gray-900 text-white fixed left-0 top-0 h-screen transition-all duration-300 z-40 flex flex-col"
+    class="bg-secondary dark:bg-gray-900 text-white fixed left-0 top-0 h-screen transition-all duration-300 z-0 flex flex-col"
     :class="isExpanded ? 'w-64' : 'w-16'"
   >
     <!-- Spacer for header height -->
-    <div class="h-[89px]"></div>
+    <div class="h-[95px]"></div>
 
     <!-- Navigation Menu -->
-    <nav class="flex-1 px-2 py-4 space-y-1">
+    <nav class="flex-1 px-2 py-4 space-y-1 overflow-hidden">
       <router-link
         to="/dashboard"
-        @click.native="handleLinkClick"
+        @click="handleLinkClick"
         class="flex items-center px-3 py-3 rounded-lg transition group relative"
         :class="
           isActive('/dashboard')
@@ -39,8 +39,8 @@
           />
         </svg>
         <span
-          v-show="isExpanded"
-          class="ml-3 font-medium transition-opacity duration-200"
+          class="ml-3 font-medium whitespace-nowrap transition-opacity duration-300"
+          :class="isExpanded ? 'opacity-100' : 'opacity-0'"
         >
           Dashboard
         </span>
@@ -56,7 +56,7 @@
 
       <router-link
         to="/control"
-        @click.native="handleLinkClick"
+        @click="handleLinkClick"
         class="flex items-center px-3 py-3 rounded-lg transition group relative"
         :class="
           isActive('/control')
@@ -83,8 +83,8 @@
           />
         </svg>
         <span
-          v-show="isExpanded"
-          class="ml-3 font-medium transition-opacity duration-200"
+          class="ml-3 font-medium whitespace-nowrap transition-opacity duration-300"
+          :class="isExpanded ? 'opacity-100' : 'opacity-0'"
         >
           Kontrol & Timer
         </span>
@@ -99,7 +99,7 @@
 
       <router-link
         to="/history"
-        @click.native="handleLinkClick"
+        @click="handleLinkClick"
         class="flex items-center px-3 py-3 rounded-lg transition group relative"
         :class="
           isActive('/history')
@@ -126,8 +126,8 @@
           />
         </svg>
         <span
-          v-show="isExpanded"
-          class="ml-3 font-medium transition-opacity duration-200"
+          class="ml-3 font-medium whitespace-nowrap transition-opacity duration-300"
+          :class="isExpanded ? 'opacity-100' : 'opacity-0'"
         >
           Rekap Pengeringan
         </span>
@@ -144,7 +144,10 @@
     <!-- User Section & Logout at Bottom -->
     <div class="p-4 border-t border-gray-700">
       <!-- User Info -->
-      <div v-if="isExpanded" class="mb-3 pb-3 border-b border-gray-700">
+      <div
+        v-if="isExpanded"
+        class="mb-3 pb-3 border-b border-gray-700 overflow-hidden"
+      >
         <div class="flex items-center space-x-3">
           <div
             class="w-10 h-10 bg-gray-400 dark:bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0"
@@ -206,7 +209,7 @@
       <!-- Logout Button -->
       <button
         @click="logout"
-        class="w-full flex items-center px-3 py-2 text-red-400 hover:bg-red-500/10 rounded-lg transition group relative"
+        class="w-full flex items-center px-3 py-2 text-red-400 hover:bg-red-500/10 rounded-lg transition group relative overflow-hidden"
       >
         <svg
           class="w-6 h-6 flex-shrink-0"
@@ -221,7 +224,12 @@
             d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
           />
         </svg>
-        <span v-show="isExpanded" class="ml-3 font-medium"> Keluar </span>
+        <span
+          class="ml-3 font-medium whitespace-nowrap transition-opacity duration-300"
+          :class="isExpanded ? 'opacity-100' : 'opacity-0'"
+        >
+          Keluar
+        </span>
 
         <div
           v-if="!isExpanded && !isHovering"
@@ -235,7 +243,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 
@@ -245,6 +253,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   updateCollapsed: [value: boolean];
+  hoverStateChange: [isHovering: boolean];
 }>();
 
 const route = useRoute();
@@ -270,7 +279,7 @@ const isActive = (path: string) => {
 const handleMouseEnter = () => {
   hoverTimer.value = window.setTimeout(() => {
     isHovering.value = true;
-  }, 500);
+  }, 300);
 };
 
 const handleMouseLeave = () => {
@@ -278,13 +287,14 @@ const handleMouseLeave = () => {
     clearTimeout(hoverTimer.value);
     hoverTimer.value = null;
   }
-  // Reset hover state
-  isHovering.value = false;
+  // Reset hover state dengan delay kecil untuk transisi yang smooth
+  setTimeout(() => {
+    isHovering.value = false;
+  }, 100);
 };
 
 const handleLinkClick = () => {
   // Reset hover state saat link diklik
-  // Ini mencegah sidebar auto-expand setelah navigasi
   isHovering.value = false;
   if (hoverTimer.value) {
     clearTimeout(hoverTimer.value);
@@ -295,12 +305,4 @@ const handleLinkClick = () => {
 const logout = () => {
   authStore.logout();
 };
-
-// Watch untuk sync dengan parent jika diperlukan
-watch(isExpanded, (newVal) => {
-  // Hanya emit jika perubahan bukan dari hover
-  if (!isHovering.value) {
-    emit("updateCollapsed", !newVal);
-  }
-});
 </script>

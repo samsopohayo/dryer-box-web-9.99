@@ -1,6 +1,7 @@
 <template>
   <header
-    class="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50 transition-colors"
+    class="bg-white dark:bg-gray-800 shadow-md sticky top-0 transition-all duration-300"
+    :style="{ zIndex: 999 }"
   >
     <div class="px-4 sm:px-6 lg:px-8">
       <!-- Top Row -->
@@ -287,6 +288,7 @@ const notificationStore = useNotificationStore();
 
 const showNotifications = ref(false);
 const notificationRef = ref<HTMLElement | null>(null);
+const sidebarExpanded = ref(false);
 
 const emit = defineEmits<{
   toggleSidebar: [];
@@ -295,6 +297,16 @@ const emit = defineEmits<{
 const toggleSidebar = () => {
   emit("toggleSidebar");
 };
+
+// Computed untuk margin header
+const headerMargin = computed(() => {
+  // Jika sidebar expanded (baik dari toggle atau hover), gunakan ml-64
+  if (sidebarExpanded.value) {
+    return "ml-64";
+  }
+  // Jika collapsed, gunakan ml-16
+  return "ml-16";
+});
 
 const currentPage = computed(() => {
   const pages: Record<string, string> = {
@@ -482,11 +494,25 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 };
 
+// Handler untuk event dari Sidebar
+const handleSidebarWidthChange = (event: CustomEvent) => {
+  sidebarExpanded.value = event.detail.isExpanded;
+};
+
 onMounted(() => {
   document.addEventListener("click", handleClickOutside);
+  // Listen untuk event dari Sidebar
+  window.addEventListener(
+    "sidebar-width-change",
+    handleSidebarWidthChange as EventListener
+  );
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("click", handleClickOutside);
+  window.removeEventListener(
+    "sidebar-width-change",
+    handleSidebarWidthChange as EventListener
+  );
 });
 </script>
