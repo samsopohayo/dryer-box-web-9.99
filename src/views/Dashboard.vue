@@ -153,17 +153,14 @@ const chartDatasets = computed(() => [
   <div class="flex min-h-screen bg-gray-100 dark:bg-gray-900">
     <Sidebar
       :isCollapsed="isSidebarCollapsed"
-      @toggle-sidebar="toggleSidebar"
+      @updateCollapsed="isSidebarCollapsed = $event"
     />
 
     <div
       class="flex-1 transition-all duration-300"
       :class="isSidebarCollapsed ? 'ml-16' : 'ml-64'"
     >
-      <Header
-        :is-collapsed="isSidebarCollapsed"
-        @toggleSidebar="toggleSidebar"
-      />
+      <Header @toggleSidebar="toggleSidebar" />
       <main class="p-8">
         <div class="max-w-7xl mx-auto">
           <!-- Sensor Cards -->
