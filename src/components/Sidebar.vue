@@ -236,7 +236,6 @@
 import { computed, ref, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
-import { useSidebarStore } from "@/stores/sidebar";
 
 const props = defineProps<{
   isCollapsed: boolean;
@@ -248,11 +247,8 @@ const emit = defineEmits<{
 
 const route = useRoute();
 const authStore = useAuthStore();
-const sidebarStore = useSidebarStore();
 
-const isHovering = ref(false);
-const isMouseInside = ref(false); // Track apakah mouse masih di dalam sidebar
-const hoverTimer = ref<number | null>(null);
+const isMouseInside = ref(false);
 const isMobile = ref(false);
 const isMobileMenuOpen = ref(false);
 
@@ -266,8 +262,10 @@ const isExpanded = computed(() => {
   // Di desktop:
   // Jika isCollapsed = false (sidebar di-toggle untuk expand), maka expand
   if (!props.isCollapsed) return true;
-  // Jika isCollapsed = true DAN (mouse inside ATAU sedang hover), maka expand
-  if (isMouseInside.value || isHovering.value) return true;
+
+  // Jika isCollapsed = true DAN mouse inside, maka expand
+  if (isMouseInside.value) return true;
+
   // Selain itu, collapsed
   return false;
 });
@@ -280,53 +278,24 @@ const isActive = (path: string) => {
 
 // Detect mobile screen
 const checkMobile = () => {
-  isMobile.value = window.innerWidth < 768; // md breakpoint
+  isMobile.value = window.innerWidth < 768;
 
-  // Jika berpindah ke desktop dan mobile menu terbuka, tutup
   if (!isMobile.value && isMobileMenuOpen.value) {
     isMobileMenuOpen.value = false;
   }
 };
 
 const handleMouseEnter = () => {
-  // Hanya aktifkan hover expand jika:
-  // 1. Bukan mobile
-  // 2. Sidebar dalam kondisi collapsed
+  // Hanya aktifkan jika bukan mobile dan sidebar collapsed
   if (isMobile.value || !props.isCollapsed) return;
 
-  // Set bahwa mouse ada di dalam sidebar
+  // LANGSUNG set isMouseInside tanpa delay
   isMouseInside.value = true;
-
-  // Cancel timer sebelumnya jika ada
-  if (hoverTimer.value) {
-    clearTimeout(hoverTimer.value);
-    hoverTimer.value = null;
-  }
-
-  // Set delay untuk expand
-  hoverTimer.value = window.setTimeout(() => {
-    isHovering.value = true;
-  }, 200); // Delay 200ms sebelum expand
 };
 
 const handleMouseLeave = () => {
-  // Set bahwa mouse sudah keluar dari sidebar
+  // LANGSUNG reset isMouseInside tanpa delay
   isMouseInside.value = false;
-
-  // Cancel hover timer jika masih berjalan
-  if (hoverTimer.value) {
-    clearTimeout(hoverTimer.value);
-    hoverTimer.value = null;
-  }
-
-  // Reset hover state dengan delay kecil untuk transisi smooth
-  // PENTING: Ini hanya dijalankan saat mouse benar-benar keluar dari sidebar
-  setTimeout(() => {
-    // Double check: pastikan mouse memang sudah keluar
-    if (!isMouseInside.value) {
-      isHovering.value = false;
-    }
-  }, 100);
 };
 
 const closeMobileMenu = () => {
@@ -351,15 +320,9 @@ watch(
       localStorage.setItem("sidebarCollapsed", newVal ? "true" : "false");
     }
 
-    // Reset hover states saat toggle manual
+    // Reset hover state saat toggle manual
     if (newVal) {
-      // Jika di-collapse manual, reset semua hover states
-      isHovering.value = false;
       isMouseInside.value = false;
-      if (hoverTimer.value) {
-        clearTimeout(hoverTimer.value);
-        hoverTimer.value = null;
-      }
     }
   }
 );
@@ -381,9 +344,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", checkMobile);
-  if (hoverTimer.value) {
-    clearTimeout(hoverTimer.value);
-  }
 });
 
 // Expose method untuk toggle dari luar (header)
