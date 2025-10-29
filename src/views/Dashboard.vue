@@ -1,3 +1,4 @@
+<!-- Dashboard.vue - Updated -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useDryerStore } from "@/stores/dryer";
@@ -19,6 +20,11 @@ import {
 const dryerStore = useDryerStore();
 const chartData = ref<any[]>([]);
 const loading = ref(true);
+const isSidebarCollapsed = ref(false);
+
+const toggleSidebar = () => {
+  isSidebarCollapsed.value = !isSidebarCollapsed.value;
+};
 
 const networkStatus = computed(() => {
   return dryerStore.systemStatus.status === "ready" ? "Stabil" : "Tidak Stabil";
@@ -98,7 +104,6 @@ onMounted(async () => {
         };
       });
     } else {
-      // fallback tanpa session
       chartData.value = Array.from({ length: 12 }, (_, i) => {
         const hour = i * 2;
         return {
@@ -143,9 +148,18 @@ const chartDatasets = computed(() => [
 
 <template>
   <div class="flex min-h-screen bg-gray-100 dark:bg-gray-900">
-    <Sidebar />
-    <div class="flex-1">
-      <Header />
+    <Sidebar
+      :isCollapsed="isSidebarCollapsed"
+      @toggle-sidebar="toggleSidebar"
+    />
+    <div
+      class="flex-1 transition-all duration-300"
+      :class="isSidebarCollapsed ? 'ml-16' : 'ml-64'"
+    >
+      <Header
+        :is-collapsed="isSidebarCollapsed"
+        @toggleSidebar="toggleSidebar"
+      />
       <main class="p-8">
         <div class="max-w-7xl mx-auto">
           <!-- Sensor Cards -->
@@ -307,7 +321,6 @@ const chartDatasets = computed(() => [
           </div>
         </div>
       </main>
-      <div class="flex-1 p-4"></div>
     </div>
   </div>
 </template>

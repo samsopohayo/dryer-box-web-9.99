@@ -1,38 +1,75 @@
 <template>
   <header
-    class="bg-white dark:bg-gray-800 shadow-lg sticky top-0 z-50 transition-colors"
+    class="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50 transition-colors"
   >
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center py-4">
-        <div class="flex items-center space-x-8">
-          <h1 class="text-2xl font-bold text-gray-800 dark:text-white">
+    <div class="px-4 sm:px-6 lg:px-8">
+      <!-- Top Row -->
+      <div
+        class="flex justify-between items-center py-3 border-b border-gray-200 dark:border-gray-700"
+      >
+        <div class="flex items-center space-x-4">
+          <!-- Menu Toggle Button -->
+          <button
+            @click="toggleSidebar"
+            class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+            title="Toggle menu"
+          >
+            <svg
+              class="w-6 h-6 text-gray-700 dark:text-gray-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 6h16M4 12h16m-7 6h7"
+              />
+            </svg>
+          </button>
+
+          <!-- Title -->
+          <h1 class="text-xl font-bold text-gray-800 dark:text-white">
             PENGERING CABAI
           </h1>
-          <p class="text-sm text-gray-600 dark:text-gray-300 hidden md:block">
-            {{ currentPage }}
-          </p>
         </div>
 
-        <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-3">
+          <!-- Alert Badge (only show if real error) -->
           <div
             v-if="showAlert"
-            class="flex items-center space-x-2 px-4 py-2 rounded-lg"
+            class="flex items-center space-x-2 px-3 py-1.5 rounded-lg"
             :class="alertClass"
           >
-            <span class="text-sm font-semibold">{{ alertText }}</span>
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <span class="text-xs font-semibold">{{ alertText }}</span>
           </div>
 
-          <div class="text-sm text-gray-600 dark:text-gray-300">
-            <p class="font-medium">{{ statusText }}</p>
-            <div class="flex items-center space-x-2 text-xs">
-              <span>{{ locationText }}</span>
-              <span>{{ currentDate }}</span>
-              <component
-                :is="weatherIcon"
-                class="w-5 h-5"
-                :class="weatherIconColor"
-              />
-            </div>
+          <!-- Weather & Location -->
+          <div
+            class="hidden md:flex items-center space-x-2 text-xs text-gray-600 dark:text-gray-300"
+          >
+            <component
+              :is="weatherIcon"
+              class="w-5 h-5"
+              :class="weatherIconColor"
+            />
+            <span>{{ locationStore.weather.temperature }}°C</span>
+            <span class="text-gray-400">|</span>
+            <span>{{ locationText }}</span>
           </div>
 
           <!-- Notification Bell -->
@@ -40,9 +77,10 @@
             <button
               @click="toggleNotifications"
               class="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+              title="Notifications"
             >
               <svg
-                class="w-6 h-6 text-gray-700 dark:text-gray-300"
+                class="w-5 h-5 text-gray-700 dark:text-gray-300"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -56,7 +94,7 @@
               </svg>
               <span
                 v-if="notificationStore.unreadCount > 0"
-                class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-semibold"
+                class="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-semibold"
               >
                 {{
                   notificationStore.unreadCount > 9
@@ -182,7 +220,7 @@
           >
             <svg
               v-if="!themeStore.isDark"
-              class="w-6 h-6"
+              class="w-5 h-5 text-gray-700 dark:text-gray-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -196,7 +234,7 @@
             </svg>
             <svg
               v-else
-              class="w-6 h-6 text-yellow-400"
+              class="w-5 h-5 text-yellow-400"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -209,63 +247,20 @@
               />
             </svg>
           </button>
+        </div>
+      </div>
 
-          <!-- Menu Button -->
-          <div class="relative" ref="menuRef">
-            <button
-              @click="toggleMenu"
-              class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
-            >
-              <svg
-                class="w-6 h-6 text-gray-700 dark:text-gray-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 6h16M4 12h16m-7 6h7"
-                />
-              </svg>
-            </button>
-
-            <!-- Menu Dropdown -->
-            <transition
-              enter-active-class="transition ease-out duration-100"
-              enter-from-class="opacity-0 scale-95"
-              enter-to-class="opacity-100 scale-100"
-              leave-active-class="transition ease-in duration-75"
-              leave-from-class="opacity-100 scale-100"
-              leave-to-class="opacity-0 scale-95"
-            >
-              <div
-                v-if="showMenu"
-                class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700"
-              >
-                <button
-                  @click="logout"
-                  class="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 font-semibold rounded-lg transition flex items-center space-x-2"
-                >
-                  <svg
-                    class="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    />
-                  </svg>
-                  <span>Keluar</span>
-                </button>
-              </div>
-            </transition>
-          </div>
+      <!-- Bottom Row - Page Info & Status -->
+      <div class="py-2 flex justify-between items-center text-sm">
+        <p class="text-gray-600 dark:text-gray-300">
+          {{ currentPage }}
+        </p>
+        <div
+          class="flex items-center space-x-4 text-gray-600 dark:text-gray-300"
+        >
+          <span>{{ statusText }}</span>
+          <span class="text-gray-400">•</span>
+          <span>{{ currentDate }}</span>
         </div>
       </div>
     </div>
@@ -290,10 +285,16 @@ const locationStore = useLocationStore();
 const themeStore = useThemeStore();
 const notificationStore = useNotificationStore();
 
-const showMenu = ref(false);
 const showNotifications = ref(false);
 const notificationRef = ref<HTMLElement | null>(null);
-const menuRef = ref<HTMLElement | null>(null);
+
+const emit = defineEmits<{
+  toggleSidebar: [];
+}>();
+
+const toggleSidebar = () => {
+  emit("toggleSidebar");
+};
 
 const currentPage = computed(() => {
   const pages: Record<string, string> = {
@@ -306,41 +307,67 @@ const currentPage = computed(() => {
 
 const locationText = computed(() => locationStore.location.city);
 
+// Only show alert for REAL errors (not "None" or "No active errors")
 const showAlert = computed(() => {
+  const errorMsg = dryerStore.systemStatus.last_error;
+  const hasRealError =
+    errorMsg &&
+    errorMsg !== "None" &&
+    errorMsg !== "No active errors" &&
+    errorMsg.trim() !== "";
+
   return (
     timerStore.timerData.enabled ||
     dryerStore.statusData.door_open ||
     dryerStore.statusData.temp_protection ||
-    dryerStore.systemStatus.last_error !== "None"
+    hasRealError
   );
 });
 
 const alertClass = computed(() => {
   if (dryerStore.statusData.temp_protection) return "bg-red-500 text-white";
   if (dryerStore.statusData.door_open) return "bg-yellow-500 text-white";
-  if (dryerStore.systemStatus.last_error !== "None")
+
+  const errorMsg = dryerStore.systemStatus.last_error;
+  if (
+    errorMsg &&
+    errorMsg !== "None" &&
+    errorMsg !== "No active errors" &&
+    errorMsg.trim() !== ""
+  ) {
     return "bg-red-500 text-white";
-  return "bg-red-600 text-white";
+  }
+
+  return "bg-blue-600 text-white";
 });
 
 const alertText = computed(() => {
   if (dryerStore.statusData.temp_protection) return "PROTEKSI SUHU AKTIF";
   if (dryerStore.statusData.door_open) return "PINTU TERBUKA";
-  if (dryerStore.systemStatus.last_error !== "None")
-    return "ERROR: " + dryerStore.systemStatus.last_error;
+
+  const errorMsg = dryerStore.systemStatus.last_error;
+  if (
+    errorMsg &&
+    errorMsg !== "None" &&
+    errorMsg !== "No active errors" &&
+    errorMsg.trim() !== ""
+  ) {
+    return "ERROR: " + errorMsg;
+  }
+
   if (timerStore.timerData.enabled) return "Timer: " + timerStore.timerDisplay;
   return "";
 });
 
 const statusText = computed(() => {
-  return `Status pengeringan: ${dryerStore.statusData.pengeringan}`;
+  return `Status: ${dryerStore.statusData.pengeringan}`;
 });
 
 const currentDate = computed(() => {
   const now = new Date();
   return now.toLocaleDateString("id-ID", {
     day: "numeric",
-    month: "long",
+    month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
@@ -423,12 +450,6 @@ const weatherIconColor = computed(() => {
 
 const toggleNotifications = () => {
   showNotifications.value = !showNotifications.value;
-  showMenu.value = false;
-};
-
-const toggleMenu = () => {
-  showMenu.value = !showMenu.value;
-  showNotifications.value = false;
 };
 
 const handleNotificationClick = (id: string) => {
@@ -450,14 +471,8 @@ const formatTime = (timestamp: number) => {
   return `${days} hari yang lalu`;
 };
 
-const logout = () => {
-  authStore.logout();
-  showMenu.value = false;
-};
-
 // Click outside handler
 const handleClickOutside = (event: MouseEvent) => {
-  // Close notifications if click outside
   if (
     showNotifications.value &&
     notificationRef.value &&
@@ -465,18 +480,8 @@ const handleClickOutside = (event: MouseEvent) => {
   ) {
     showNotifications.value = false;
   }
-
-  // Close menu if click outside
-  if (
-    showMenu.value &&
-    menuRef.value &&
-    !menuRef.value.contains(event.target as Node)
-  ) {
-    showMenu.value = false;
-  }
 };
 
-// Setup event listeners
 onMounted(() => {
   document.addEventListener("click", handleClickOutside);
 });

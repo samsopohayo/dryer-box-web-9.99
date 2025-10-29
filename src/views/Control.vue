@@ -1,12 +1,12 @@
-// FILE: src/views/Control.vue (UPDATED with LocationSetting) //
-============================================
+<!-- Control.vue - Updated -->
 <template>
   <div class="flex min-h-screen bg-gray-100 dark:bg-gray-900">
-    <Sidebar />
-
-    <div class="flex-1">
-      <Header />
-
+    <Sidebar :isCollapsed="isSidebarCollapsed" />
+    <div
+      class="flex-1 transition-all duration-300"
+      :class="isSidebarCollapsed ? 'ml-16' : 'ml-64'"
+    >
+      <Header @toggleSidebar="toggleSidebar" />
       <main class="p-8">
         <div class="max-w-7xl mx-auto space-y-8">
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -95,6 +95,11 @@ import TimerControl from "@/components/TimerControl.vue";
 import LocationSetting from "@/components/LocationSetting.vue";
 
 const dryerStore = useDryerStore();
+const isSidebarCollapsed = ref(false);
+
+const toggleSidebar = () => {
+  isSidebarCollapsed.value = !isSidebarCollapsed.value;
+};
 
 const targetHumidityMin = ref(dryerStore.configData.targetHumidityMin);
 const targetHumidityMax = ref(dryerStore.configData.targetHumidityMax);
