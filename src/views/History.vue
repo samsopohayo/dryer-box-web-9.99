@@ -3,7 +3,10 @@
   <div class="h-[95px]"></div>
 
   <div class="flex min-h-screen bg-gray-100 dark:bg-gray-900">
-    <Sidebar :isCollapsed="isSidebarCollapsed" />
+    <Sidebar
+      :isCollapsed="isSidebarCollapsed"
+      @updateCollapsed="isSidebarCollapsed = $event"
+    />
 
     <div
       class="flex-1 transition-all duration-300"

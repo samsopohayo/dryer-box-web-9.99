@@ -47,7 +47,7 @@
 
         <!-- Tooltip for collapsed state -->
         <div
-          v-if="!isExpanded && !isHovering"
+          v-if="!isExpanded"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Dashboard
@@ -90,7 +90,7 @@
         </span>
 
         <div
-          v-if="!isExpanded && !isHovering"
+          v-if="!isExpanded"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Kontrol & Timer
@@ -133,7 +133,7 @@
         </span>
 
         <div
-          v-if="!isExpanded && !isHovering"
+          v-if="!isExpanded"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Rekap Pengeringan
@@ -141,12 +141,11 @@
       </router-link>
     </nav>
 
-    <!-- User Section (fixed layout -> no jump) -->
+    <!-- User Section -->
     <div class="p-2 border-t border-gray-700">
       <div
         class="mb-3 pb-3 border-b border-gray-700 flex items-center space-x-3"
       >
-        <!-- Left: fixed icon column (never moves) -->
         <div
           class="w-10 flex-shrink-0 flex items-center justify-center relative group"
         >
@@ -168,7 +167,6 @@
             </svg>
           </div>
 
-          <!-- Tooltip saat collapsed (tetap seperti tombol logout) -->
           <div
             v-if="!isExpanded"
             class="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
@@ -177,7 +175,6 @@
           </div>
         </div>
 
-        <!-- Right: info column (kehadirannya tidak mengubah layout karena max-width/overflow) -->
         <div
           :class="[
             'flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-hidden',
@@ -192,7 +189,7 @@
         </div>
       </div>
 
-      <!-- Logout Button (tetap seperti semula) -->
+      <!-- Logout Button -->
       <button
         @click="logout"
         class="w-full flex items-center px-3 py-2 text-red-400 hover:bg-red-500/10 rounded-lg transition group relative overflow-hidden"
@@ -239,7 +236,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   updateCollapsed: [value: boolean];
-  hoverStateChange: [isHovering: boolean];
 }>();
 
 const route = useRoute();
@@ -250,10 +246,12 @@ const hoverTimer = ref<number | null>(null);
 
 // Computed untuk menentukan apakah sidebar expanded
 const isExpanded = computed(() => {
-  // Jika sedang hover, expand
+  // Jika isCollapsed = false (sidebar di-toggle untuk expand), maka expand
+  if (!props.isCollapsed) return true;
+  // Jika isCollapsed = true dan sedang hover, maka expand
   if (isHovering.value) return true;
-  // Jika tidak, ikuti props isCollapsed (tapi dibalik karena isCollapsed true = width kecil)
-  return !props.isCollapsed;
+  // Selain itu, collapsed
+  return false;
 });
 
 const userEmail = computed(() => authStore.user?.email || "User");
@@ -263,6 +261,9 @@ const isActive = (path: string) => {
 };
 
 const handleMouseEnter = () => {
+  // Hanya aktifkan hover expand jika sidebar dalam kondisi collapsed
+  if (!props.isCollapsed) return;
+
   hoverTimer.value = window.setTimeout(() => {
     isHovering.value = true;
   }, 300);
@@ -273,14 +274,12 @@ const handleMouseLeave = () => {
     clearTimeout(hoverTimer.value);
     hoverTimer.value = null;
   }
-  // Reset hover state dengan delay kecil untuk transisi yang smooth
-  setTimeout(() => {
-    isHovering.value = false;
-  }, 100);
+  // Reset hover state
+  isHovering.value = false;
 };
 
 const handleLinkClick = () => {
-  // Reset hover state saat link diklik
+  // Reset hover state
   isHovering.value = false;
   if (hoverTimer.value) {
     clearTimeout(hoverTimer.value);
