@@ -20,7 +20,7 @@ import {
 const dryerStore = useDryerStore();
 const chartData = ref<any[]>([]);
 const loading = ref(true);
-const isSidebarCollapsed = ref(false);
+const isSidebarCollapsed = ref(true);
 
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
@@ -155,6 +155,7 @@ const chartDatasets = computed(() => [
       :isCollapsed="isSidebarCollapsed"
       @toggle-sidebar="toggleSidebar"
     />
+
     <div
       class="flex-1 transition-all duration-300"
       :class="isSidebarCollapsed ? 'ml-16' : 'ml-64'"

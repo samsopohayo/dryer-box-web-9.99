@@ -3,7 +3,10 @@
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
     class="bg-secondary dark:bg-gray-900 text-white fixed left-0 top-0 h-screen transition-all duration-300 z-40 flex flex-col"
-    :class="isExpanded ? 'w-64' : 'w-16'"
+    :class="[
+      isExpanded ? 'w-64' : 'w-16',
+      isMobileMenuOpen ? 'translate-x-0' : 'max-md:-translate-x-full',
+    ]"
   >
     <!-- Spacer for header height -->
     <div class="h-[95px]"></div>
@@ -12,7 +15,6 @@
     <nav class="flex-1 px-2 py-4 space-y-1 overflow-hidden">
       <router-link
         to="/dashboard"
-        @click="handleLinkClick"
         class="flex items-center px-3 py-3 rounded-lg transition group relative"
         :class="
           isActive('/dashboard')
@@ -45,9 +47,9 @@
           Dashboard
         </span>
 
-        <!-- Tooltip for collapsed state -->
+        <!-- Tooltip for collapsed state on desktop -->
         <div
-          v-if="!isExpanded"
+          v-if="!isExpanded && !isMobile"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Dashboard
@@ -56,7 +58,6 @@
 
       <router-link
         to="/control"
-        @click="handleLinkClick"
         class="flex items-center px-3 py-3 rounded-lg transition group relative"
         :class="
           isActive('/control')
@@ -90,7 +91,7 @@
         </span>
 
         <div
-          v-if="!isExpanded"
+          v-if="!isExpanded && !isMobile"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Kontrol & Timer
@@ -99,7 +100,6 @@
 
       <router-link
         to="/history"
-        @click="handleLinkClick"
         class="flex items-center px-3 py-3 rounded-lg transition group relative"
         :class="
           isActive('/history')
@@ -133,7 +133,7 @@
         </span>
 
         <div
-          v-if="!isExpanded"
+          v-if="!isExpanded && !isMobile"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Rekap Pengeringan
@@ -168,7 +168,7 @@
           </div>
 
           <div
-            v-if="!isExpanded"
+            v-if="!isExpanded && !isMobile"
             class="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
           >
             {{ userEmail }}
@@ -215,7 +215,7 @@
         </span>
 
         <div
-          v-if="!isExpanded"
+          v-if="!isExpanded && !isMobile"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Keluar
@@ -223,12 +223,20 @@
       </button>
     </div>
   </aside>
+
+  <!-- Mobile Overlay -->
+  <div
+    v-if="isMobile && isMobileMenuOpen"
+    @click="closeMobileMenu"
+    class="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+  ></div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import { useSidebarStore } from "@/stores/sidebar";
 
 const props = defineProps<{
   isCollapsed: boolean;
@@ -240,16 +248,26 @@ const emit = defineEmits<{
 
 const route = useRoute();
 const authStore = useAuthStore();
+const sidebarStore = useSidebarStore();
 
 const isHovering = ref(false);
+const isMouseInside = ref(false); // Track apakah mouse masih di dalam sidebar
 const hoverTimer = ref<number | null>(null);
+const isMobile = ref(false);
+const isMobileMenuOpen = ref(false);
 
 // Computed untuk menentukan apakah sidebar expanded
 const isExpanded = computed(() => {
+  // Di mobile, gunakan state menu mobile
+  if (isMobile.value) {
+    return isMobileMenuOpen.value;
+  }
+
+  // Di desktop:
   // Jika isCollapsed = false (sidebar di-toggle untuk expand), maka expand
   if (!props.isCollapsed) return true;
-  // Jika isCollapsed = true dan sedang hover, maka expand
-  if (isHovering.value) return true;
+  // Jika isCollapsed = true DAN (mouse inside ATAU sedang hover), maka expand
+  if (isMouseInside.value || isHovering.value) return true;
   // Selain itu, collapsed
   return false;
 });
@@ -260,34 +278,120 @@ const isActive = (path: string) => {
   return route.path === path;
 };
 
-const handleMouseEnter = () => {
-  // Hanya aktifkan hover expand jika sidebar dalam kondisi collapsed
-  if (!props.isCollapsed) return;
+// Detect mobile screen
+const checkMobile = () => {
+  isMobile.value = window.innerWidth < 768; // md breakpoint
 
+  // Jika berpindah ke desktop dan mobile menu terbuka, tutup
+  if (!isMobile.value && isMobileMenuOpen.value) {
+    isMobileMenuOpen.value = false;
+  }
+};
+
+const handleMouseEnter = () => {
+  // Hanya aktifkan hover expand jika:
+  // 1. Bukan mobile
+  // 2. Sidebar dalam kondisi collapsed
+  if (isMobile.value || !props.isCollapsed) return;
+
+  // Set bahwa mouse ada di dalam sidebar
+  isMouseInside.value = true;
+
+  // Cancel timer sebelumnya jika ada
+  if (hoverTimer.value) {
+    clearTimeout(hoverTimer.value);
+    hoverTimer.value = null;
+  }
+
+  // Set delay untuk expand
   hoverTimer.value = window.setTimeout(() => {
     isHovering.value = true;
-  }, 300);
+  }, 200); // Delay 200ms sebelum expand
 };
 
 const handleMouseLeave = () => {
+  // Set bahwa mouse sudah keluar dari sidebar
+  isMouseInside.value = false;
+
+  // Cancel hover timer jika masih berjalan
   if (hoverTimer.value) {
     clearTimeout(hoverTimer.value);
     hoverTimer.value = null;
   }
-  // Reset hover state
-  isHovering.value = false;
+
+  // Reset hover state dengan delay kecil untuk transisi smooth
+  // PENTING: Ini hanya dijalankan saat mouse benar-benar keluar dari sidebar
+  setTimeout(() => {
+    // Double check: pastikan mouse memang sudah keluar
+    if (!isMouseInside.value) {
+      isHovering.value = false;
+    }
+  }, 100);
 };
 
-const handleLinkClick = () => {
-  // Reset hover state
-  isHovering.value = false;
-  if (hoverTimer.value) {
-    clearTimeout(hoverTimer.value);
-    hoverTimer.value = null;
-  }
+const closeMobileMenu = () => {
+  isMobileMenuOpen.value = false;
 };
 
 const logout = () => {
   authStore.logout();
 };
+
+// Watch untuk perubahan isCollapsed dari parent (toggle dari header)
+watch(
+  () => props.isCollapsed,
+  (newVal) => {
+    // Di mobile, toggle mobile menu state
+    if (isMobile.value) {
+      isMobileMenuOpen.value = !newVal;
+    }
+
+    // Simpan preferensi ke localStorage (hanya untuk desktop)
+    if (!isMobile.value) {
+      localStorage.setItem("sidebarCollapsed", newVal ? "true" : "false");
+    }
+
+    // Reset hover states saat toggle manual
+    if (newVal) {
+      // Jika di-collapse manual, reset semua hover states
+      isHovering.value = false;
+      isMouseInside.value = false;
+      if (hoverTimer.value) {
+        clearTimeout(hoverTimer.value);
+        hoverTimer.value = null;
+      }
+    }
+  }
+);
+
+// Load preferensi sidebar dari localStorage saat mounted
+onMounted(() => {
+  checkMobile();
+  window.addEventListener("resize", checkMobile);
+
+  // Load saved preference (hanya untuk desktop)
+  if (!isMobile.value) {
+    const saved = localStorage.getItem("sidebarCollapsed");
+    if (saved !== null) {
+      const isCollapsed = saved === "true";
+      emit("updateCollapsed", isCollapsed);
+    }
+  }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", checkMobile);
+  if (hoverTimer.value) {
+    clearTimeout(hoverTimer.value);
+  }
+});
+
+// Expose method untuk toggle dari luar (header)
+defineExpose({
+  toggleMobileMenu: () => {
+    if (isMobile.value) {
+      isMobileMenuOpen.value = !isMobileMenuOpen.value;
+    }
+  },
+});
 </script>

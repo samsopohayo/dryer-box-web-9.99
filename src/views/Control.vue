@@ -102,7 +102,7 @@ import TimerControl from "@/components/TimerControl.vue";
 import LocationSetting from "@/components/LocationSetting.vue";
 
 const dryerStore = useDryerStore();
-const isSidebarCollapsed = ref(false);
+const isSidebarCollapsed = ref(true);
 
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
