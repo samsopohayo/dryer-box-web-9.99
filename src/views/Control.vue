@@ -1,5 +1,7 @@
 <!-- Control.vue - Updated -->
 <template>
+  <!-- Spacer for header height -->
+  <div class="h-[95px]"></div>
   <div class="flex min-h-screen bg-gray-100 dark:bg-gray-900">
     <Sidebar :isCollapsed="isSidebarCollapsed" />
     <div

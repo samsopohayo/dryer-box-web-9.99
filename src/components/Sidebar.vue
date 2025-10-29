@@ -2,7 +2,7 @@
   <aside
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
-    class="bg-secondary dark:bg-gray-900 text-white fixed left-0 top-0 h-screen transition-all duration-300 z-0 flex flex-col"
+    class="bg-secondary dark:bg-gray-900 text-white fixed left-0 top-0 h-screen transition-all duration-300 z-40 flex flex-col"
     :class="isExpanded ? 'w-64' : 'w-16'"
   >
     <!-- Spacer for header height -->
@@ -141,16 +141,17 @@
       </router-link>
     </nav>
 
-    <!-- User Section & Logout at Bottom -->
-    <div class="p-4 border-t border-gray-700">
-      <!-- User Info -->
+    <!-- User Section (fixed layout -> no jump) -->
+    <div class="p-2 border-t border-gray-700">
       <div
-        v-if="isExpanded"
-        class="mb-3 pb-3 border-b border-gray-700 overflow-hidden"
+        class="mb-3 pb-3 border-b border-gray-700 flex items-center space-x-3"
       >
-        <div class="flex items-center space-x-3">
+        <!-- Left: fixed icon column (never moves) -->
+        <div
+          class="w-10 flex-shrink-0 flex items-center justify-center relative group"
+        >
           <div
-            class="w-10 h-10 bg-gray-400 dark:bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0"
+            class="w-10 h-10 bg-gray-400 dark:bg-gray-600 rounded-full flex items-center justify-center"
           >
             <svg
               class="w-6 h-6 text-gray-600 dark:text-gray-300"
@@ -166,47 +167,32 @@
               />
             </svg>
           </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-white truncate">
-              {{ userEmail }}
-            </p>
-            <p class="text-xs text-gray-400">Pengguna</p>
-          </div>
-        </div>
-      </div>
 
-      <!-- User Icon Only (Collapsed) -->
-      <div
-        v-else
-        class="mb-3 pb-3 border-b border-gray-700 flex justify-center"
-      >
-        <div
-          class="w-10 h-10 bg-gray-400 dark:bg-gray-600 rounded-full flex items-center justify-center group relative"
-        >
-          <svg
-            class="w-6 h-6 text-gray-600 dark:text-gray-300"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-            />
-          </svg>
-
+          <!-- Tooltip saat collapsed (tetap seperti tombol logout) -->
           <div
-            v-if="!isHovering"
-            class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
+            v-if="!isExpanded"
+            class="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
           >
             {{ userEmail }}
           </div>
         </div>
+
+        <!-- Right: info column (kehadirannya tidak mengubah layout karena max-width/overflow) -->
+        <div
+          :class="[
+            'flex-1 min-w-0 transition-all duration-300 ease-in-out overflow-hidden',
+            isExpanded ? 'max-w-[400px] opacity-100' : 'max-w-0 opacity-0',
+          ]"
+          aria-hidden="!isExpanded"
+        >
+          <p class="text-sm font-medium text-white truncate">
+            {{ userEmail }}
+          </p>
+          <p class="text-xs text-gray-400">Pengguna</p>
+        </div>
       </div>
 
-      <!-- Logout Button -->
+      <!-- Logout Button (tetap seperti semula) -->
       <button
         @click="logout"
         class="w-full flex items-center px-3 py-2 text-red-400 hover:bg-red-500/10 rounded-lg transition group relative overflow-hidden"
@@ -232,7 +218,7 @@
         </span>
 
         <div
-          v-if="!isExpanded && !isHovering"
+          v-if="!isExpanded"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Keluar

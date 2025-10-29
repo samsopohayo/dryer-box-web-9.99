@@ -1,15 +1,14 @@
 <template>
   <header
-    class="bg-white dark:bg-gray-800 shadow-md sticky top-0 transition-all duration-300"
-    :style="{ zIndex: 999 }"
+    class="bg-white dark:bg-gray-800 shadow-md fixed top-0 left-0 right-0 transition-all duration-300 z-[1000]"
   >
     <div class="px-4 sm:px-6 lg:px-8">
       <!-- Top Row -->
       <div
         class="flex justify-between items-center py-3 border-b border-gray-200 dark:border-gray-700"
       >
-        <div class="flex items-center space-x-4">
-          <!-- Menu Toggle Button -->
+        <!-- Left Section: Menu Toggle & Title -->
+        <div class="flex items-center space-x-4 flex-1">
           <button
             @click="toggleSidebar"
             class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
@@ -30,17 +29,16 @@
             </svg>
           </button>
 
-          <!-- Title -->
           <h1 class="text-xl font-bold text-gray-800 dark:text-white">
             PENGERING CABAI
           </h1>
         </div>
 
-        <div class="flex items-center space-x-3">
-          <!-- Alert Badge (only show if real error) -->
+        <!-- Center Section: Alert Badge -->
+        <div class="flex-1 flex justify-center">
           <div
             v-if="showAlert"
-            class="flex items-center space-x-2 px-3 py-1.5 rounded-lg"
+            class="flex items-center space-x-2 px-4 py-1.5 rounded-lg"
             :class="alertClass"
           >
             <svg
@@ -58,7 +56,10 @@
             </svg>
             <span class="text-xs font-semibold">{{ alertText }}</span>
           </div>
+        </div>
 
+        <!-- Right Section: Weather, Notification, Dark Mode -->
+        <div class="flex items-center space-x-3 flex-1 justify-end">
           <!-- Weather & Location -->
           <div
             class="hidden md:flex items-center space-x-2 text-xs text-gray-600 dark:text-gray-300"
@@ -288,7 +289,6 @@ const notificationStore = useNotificationStore();
 
 const showNotifications = ref(false);
 const notificationRef = ref<HTMLElement | null>(null);
-const sidebarExpanded = ref(false);
 
 const emit = defineEmits<{
   toggleSidebar: [];
@@ -297,16 +297,6 @@ const emit = defineEmits<{
 const toggleSidebar = () => {
   emit("toggleSidebar");
 };
-
-// Computed untuk margin header
-const headerMargin = computed(() => {
-  // Jika sidebar expanded (baik dari toggle atau hover), gunakan ml-64
-  if (sidebarExpanded.value) {
-    return "ml-64";
-  }
-  // Jika collapsed, gunakan ml-16
-  return "ml-16";
-});
 
 const currentPage = computed(() => {
   const pages: Record<string, string> = {
@@ -494,25 +484,11 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 };
 
-// Handler untuk event dari Sidebar
-const handleSidebarWidthChange = (event: CustomEvent) => {
-  sidebarExpanded.value = event.detail.isExpanded;
-};
-
 onMounted(() => {
   document.addEventListener("click", handleClickOutside);
-  // Listen untuk event dari Sidebar
-  window.addEventListener(
-    "sidebar-width-change",
-    handleSidebarWidthChange as EventListener
-  );
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("click", handleClickOutside);
-  window.removeEventListener(
-    "sidebar-width-change",
-    handleSidebarWidthChange as EventListener
-  );
 });
 </script>
