@@ -1,4 +1,4 @@
-<!-- Dashboard.vue - Updated -->
+<!-- Dashboard.vue - Updated with proper responsive layout -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useDryerStore } from "@/stores/dryer";
@@ -30,22 +30,8 @@ const networkStatus = computed(() => {
   return dryerStore.systemStatus.status === "ready" ? "Stabil" : "Tidak Stabil";
 });
 
-const networkStatusClass = computed(() => {
-  return dryerStore.systemStatus.status === "ready"
-    ? "text-green-600 dark:text-green-400"
-    : "text-red-600 dark:text-red-400";
-});
-
 const wifiSSID = computed(() => dryerStore.systemStatus.wifi_ssid || "-");
 const wifiRSSI = computed(() => dryerStore.systemStatus.wifi_rssi || "-");
-
-const rssiClass = computed(() => {
-  const rssi = wifiRSSI.value;
-  if (rssi >= -50) return "text-green-600 dark:text-green-400";
-  if (rssi >= -60) return "text-blue-600 dark:text-blue-400";
-  if (rssi >= -70) return "text-yellow-600 dark:text-yellow-400";
-  return "text-red-600 dark:text-red-400";
-});
 
 const rssiSignalClass = computed(() => {
   const rssi = wifiRSSI.value;
@@ -67,7 +53,6 @@ const rssiSignalText = computed(() => {
 });
 
 const ipAddress = computed(() => dryerStore.systemStatus.ip_address || "-");
-
 const sensorDHT22 = computed(() =>
   dryerStore.sensorData.suhu > 0 ? "OK" : "ERROR"
 );
@@ -118,32 +103,6 @@ onMounted(async () => {
     loading.value = false;
   }
 });
-
-const chartLabels = computed(() => chartData.value.map((d) => d.time));
-
-const chartDatasets = computed(() => [
-  {
-    label: "Suhu (°C)",
-    data: chartData.value.map((d) => d.temperature),
-    borderColor: "red",
-    backgroundColor: "rgba(255,0,0,0.2)",
-    tension: 0.3,
-  },
-  {
-    label: "Kelembapan (%)",
-    data: chartData.value.map((d) => d.humidity),
-    borderColor: "blue",
-    backgroundColor: "rgba(0,0,255,0.2)",
-    tension: 0.3,
-  },
-  {
-    label: "kadar air (%)",
-    data: chartData.value.map((d) => d.moisture),
-    borderColor: "green",
-    backgroundColor: "rgba(0,255,0,0.2)",
-    tension: 0.3,
-  },
-]);
 </script>
 
 <template>
@@ -157,14 +116,16 @@ const chartDatasets = computed(() => [
     />
 
     <div
-      class="flex-1 transition-all duration-300"
-      :class="isSidebarCollapsed ? 'ml-16' : 'ml-64'"
+      class="flex-1 transition-all duration-300 ease-in-out max-md:ml-0"
+      :class="isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64'"
     >
       <Header @toggleSidebar="toggleSidebar" />
-      <main class="p-8">
+      <main class="p-4 sm:p-6 lg:p-8">
         <div class="max-w-7xl mx-auto">
           <!-- Sensor Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div
+            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8"
+          >
             <SensorCard
               label="suhu"
               :value="dryerStore.sensorData.suhu"
@@ -185,13 +146,12 @@ const chartDatasets = computed(() => [
               :value="dryerStore.statusData.pengeringan"
               unit=""
             />
-
             <StatusCard :status="dryerStore.overallStatus" />
           </div>
 
           <!-- Chart -->
           <div
-            class="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-colors"
+            class="mt-6 sm:mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6 transition-colors"
           >
             <ChartMonitoring
               :labels="chartData.map((d) => d.time)"
@@ -218,25 +178,27 @@ const chartDatasets = computed(() => [
 
           <!-- Information -->
           <div
-            class="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-colors"
+            class="mt-6 sm:mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6 transition-colors"
           >
             <h2
-              class="text-lg font-semibold mb-4 text-gray-800 dark:text-white flex items-center gap-2"
+              class="text-base sm:text-lg font-semibold mb-4 text-gray-800 dark:text-white flex items-center gap-2"
             >
               <Cpu class="w-5 h-5 text-blue-500" /> Informasi Sistem
             </h2>
 
             <div
-              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-sm"
+              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 text-sm"
             >
               <!-- Status jaringan -->
               <div class="flex items-start gap-3">
-                <Network class="w-5 h-5 text-blue-500 mt-0.5" />
-                <div>
+                <Network class="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                <div class="min-w-0">
                   <p class="text-gray-600 dark:text-gray-400">
                     Koneksi Jaringan:
                   </p>
-                  <p class="font-semibold text-gray-800 dark:text-white">
+                  <p
+                    class="font-semibold text-gray-800 dark:text-white truncate"
+                  >
                     {{ networkStatus }}
                   </p>
                 </div>
@@ -244,10 +206,12 @@ const chartDatasets = computed(() => [
 
               <!-- Nama SSID -->
               <div class="flex items-start gap-3">
-                <Wifi class="w-5 h-5 text-green-500 mt-0.5" />
-                <div>
+                <Wifi class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <div class="min-w-0">
                   <p class="text-gray-600 dark:text-gray-400">Nama SSID:</p>
-                  <p class="font-semibold text-gray-800 dark:text-white">
+                  <p
+                    class="font-semibold text-gray-800 dark:text-white truncate"
+                  >
                     {{ wifiSSID }}
                   </p>
                 </div>
@@ -255,14 +219,14 @@ const chartDatasets = computed(() => [
 
               <!-- Kekuatan sinyal WiFi -->
               <div class="flex items-start gap-3">
-                <Signal class="w-5 h-5 text-yellow-500 mt-0.5" />
-                <div>
+                <Signal class="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                <div class="min-w-0">
                   <p class="text-gray-600 dark:text-gray-400">
                     Kekuatan Sinyal WiFi:
                   </p>
                   <p
                     :class="rssiSignalClass"
-                    class="font-semibold px-2 py-1 rounded-lg inline-block"
+                    class="font-semibold px-2 py-1 rounded-lg inline-block text-xs sm:text-sm"
                   >
                     {{ wifiRSSI }} dBm — {{ rssiSignalText }}
                   </p>
@@ -271,10 +235,12 @@ const chartDatasets = computed(() => [
 
               <!-- IP Address -->
               <div class="flex items-start gap-3">
-                <Network class="w-5 h-5 text-indigo-500 mt-0.5" />
-                <div>
+                <Network class="w-5 h-5 text-indigo-500 mt-0.5 flex-shrink-0" />
+                <div class="min-w-0">
                   <p class="text-gray-600 dark:text-gray-400">Alamat IP:</p>
-                  <p class="font-semibold text-gray-800 dark:text-white">
+                  <p
+                    class="font-semibold text-gray-800 dark:text-white truncate"
+                  >
                     {{ ipAddress }}
                   </p>
                 </div>
@@ -282,8 +248,10 @@ const chartDatasets = computed(() => [
 
               <!-- Sensor DHT22 -->
               <div class="flex items-start gap-3">
-                <Thermometer class="w-5 h-5 text-red-500 mt-0.5" />
-                <div>
+                <Thermometer
+                  class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0"
+                />
+                <div class="min-w-0">
                   <p class="text-gray-600 dark:text-gray-400">
                     Status Sensor DHT22:
                   </p>
@@ -295,8 +263,8 @@ const chartDatasets = computed(() => [
 
               <!-- Sensor HX711 -->
               <div class="flex items-start gap-3">
-                <Gauge class="w-5 h-5 text-green-600 mt-0.5" />
-                <div>
+                <Gauge class="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                <div class="min-w-0">
                   <p class="text-gray-600 dark:text-gray-400">
                     Status Sensor HX711:
                   </p>
@@ -310,10 +278,14 @@ const chartDatasets = computed(() => [
               <div
                 class="flex items-start gap-3 col-span-1 sm:col-span-2 lg:col-span-4"
               >
-                <AlertCircle class="w-5 h-5 text-red-500 mt-0.5" />
-                <div>
+                <AlertCircle
+                  class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0"
+                />
+                <div class="min-w-0 flex-1">
                   <p class="text-gray-600 dark:text-gray-400">Status Error:</p>
-                  <p class="font-semibold text-gray-800 dark:text-white">
+                  <p
+                    class="font-semibold text-gray-800 dark:text-white break-words"
+                  >
                     {{ errorStatus }}
                   </p>
                 </div>

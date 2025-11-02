@@ -15,6 +15,7 @@
     <nav class="flex-1 px-2 py-4 space-y-1 overflow-hidden">
       <router-link
         to="/dashboard"
+        @click="handleLinkClick"
         class="flex items-center px-3 py-3 rounded-lg transition group relative"
         :class="
           isActive('/dashboard')
@@ -49,7 +50,7 @@
 
         <!-- Tooltip for collapsed state on desktop -->
         <div
-          v-if="!isExpanded && !isMobile"
+          v-if="!isExpanded && !isMobile && !isHovering"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Dashboard
@@ -58,6 +59,7 @@
 
       <router-link
         to="/control"
+        @click="handleLinkClick"
         class="flex items-center px-3 py-3 rounded-lg transition group relative"
         :class="
           isActive('/control')
@@ -91,7 +93,7 @@
         </span>
 
         <div
-          v-if="!isExpanded && !isMobile"
+          v-if="!isExpanded && !isMobile && !isHovering"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Kontrol & Timer
@@ -100,6 +102,7 @@
 
       <router-link
         to="/history"
+        @click="handleLinkClick"
         class="flex items-center px-3 py-3 rounded-lg transition group relative"
         :class="
           isActive('/history')
@@ -133,7 +136,7 @@
         </span>
 
         <div
-          v-if="!isExpanded && !isMobile"
+          v-if="!isExpanded && !isMobile && !isHovering"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Rekap Pengeringan
@@ -168,7 +171,7 @@
           </div>
 
           <div
-            v-if="!isExpanded && !isMobile"
+            v-if="!isExpanded && !isMobile && !isHovering"
             class="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
           >
             {{ userEmail }}
@@ -215,7 +218,7 @@
         </span>
 
         <div
-          v-if="!isExpanded && !isMobile"
+          v-if="!isExpanded && !isMobile && !isHovering"
           class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50"
         >
           Keluar
@@ -248,26 +251,19 @@ const emit = defineEmits<{
 const route = useRoute();
 const authStore = useAuthStore();
 
-const isMouseInside = ref(false);
+const isHovering = ref(false);
 const isMobile = ref(false);
 const isMobileMenuOpen = ref(false);
 
-// Computed untuk menentukan apakah sidebar expanded
+// Computed: sidebar expanded jika pinned (not collapsed) ATAU sedang di-hover (collapsed + hover)
 const isExpanded = computed(() => {
-  // Di mobile, gunakan state menu mobile
+  // Mobile: gunakan state menu mobile
   if (isMobile.value) {
     return isMobileMenuOpen.value;
   }
 
-  // Di desktop:
-  // Jika isCollapsed = false (sidebar di-toggle untuk expand), maka expand
-  if (!props.isCollapsed) return true;
-
-  // Jika isCollapsed = true DAN mouse inside, maka expand
-  if (isMouseInside.value) return true;
-
-  // Selain itu, collapsed
-  return false;
+  // Desktop: expanded jika pinned (!isCollapsed) atau sedang hover (isCollapsed + isHovering)
+  return !props.isCollapsed || isHovering.value;
 });
 
 const userEmail = computed(() => authStore.user?.email || "User");
@@ -286,16 +282,25 @@ const checkMobile = () => {
 };
 
 const handleMouseEnter = () => {
-  // Hanya aktifkan jika bukan mobile dan sidebar collapsed
+  // Hanya aktifkan hover jika bukan mobile DAN sidebar dalam mode collapsed
   if (isMobile.value || !props.isCollapsed) return;
 
-  // LANGSUNG set isMouseInside tanpa delay
-  isMouseInside.value = true;
+  isHovering.value = true;
 };
 
 const handleMouseLeave = () => {
-  // LANGSUNG reset isMouseInside tanpa delay
-  isMouseInside.value = false;
+  // Reset hover state saat mouse keluar dari area sidebar
+  isHovering.value = false;
+};
+
+const handleLinkClick = () => {
+  // Di mobile, tutup menu setelah klik link
+  if (isMobile.value) {
+    closeMobileMenu();
+  }
+
+  // Di desktop mode collapsed + hover, JANGAN reset hover state
+  // Biarkan handleMouseLeave yang handle
 };
 
 const closeMobileMenu = () => {
@@ -320,9 +325,9 @@ watch(
       localStorage.setItem("sidebarCollapsed", newVal ? "true" : "false");
     }
 
-    // Reset hover state saat toggle manual
-    if (newVal) {
-      isMouseInside.value = false;
+    // Reset hover state ketika toggle ke pinned mode (expanded permanent)
+    if (!newVal) {
+      isHovering.value = false;
     }
   }
 );

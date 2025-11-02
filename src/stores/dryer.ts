@@ -1,4 +1,4 @@
-// FILE: src/stores/dryer.ts
+// FILE: src/stores/dryer.ts (FIXED)
 // ============================================
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
@@ -62,7 +62,7 @@ export const useDryerStore = defineStore("dryer", () => {
     last_error: "None",
   });
 
-  const sessions = ref<Record<string, SessionInfo>>({});
+  const sessions = ref<Record<string, any>>({});
   const currentSessionData = ref<Record<string, SessionDataPoint>>({});
 
   const overallStatus = computed(() => {
@@ -74,7 +74,6 @@ export const useDryerStore = defineStore("dryer", () => {
   });
 
   const initializeListeners = () => {
-
     onValue(dbRef(database, "config"), (snapshot) => {
       if (snapshot.exists()) {
         configData.value = snapshot.val();
@@ -93,21 +92,17 @@ export const useDryerStore = defineStore("dryer", () => {
       }
     });
 
-    //
-
     onValue(dbRef(database, "status"), (snapshot) => {
       if (snapshot.exists()) {
         statusData.value = snapshot.val();
       }
     });
-    
+
     onValue(dbRef(database, "system"), (snapshot) => {
       if (snapshot.exists()) {
         systemStatus.value = snapshot.val();
       }
     });
-
-    //timer
 
     onValue(dbRef(database, "weather"), (snapshot) => {
       if (snapshot.exists()) {
@@ -141,9 +136,24 @@ export const useDryerStore = defineStore("dryer", () => {
   };
 
   const fetchSessionData = async (sessionId: string) => {
-    const snapshot = await get(dbRef(database, `sessions/${sessionId}/data`));
-    if (snapshot.exists()) {
-      currentSessionData.value = snapshot.val();
+    try {
+      // Fetch from sessions/{sessionId}/data
+      const snapshot = await get(dbRef(database, `sessions/${sessionId}/data`));
+
+      if (snapshot.exists()) {
+        currentSessionData.value = snapshot.val();
+        console.log(
+          `Loaded ${
+            Object.keys(snapshot.val()).length
+          } data points for session ${sessionId}`
+        );
+      } else {
+        console.warn(`No data found for session ${sessionId}`);
+        currentSessionData.value = {};
+      }
+    } catch (error) {
+      console.error("Error fetching session data:", error);
+      currentSessionData.value = {};
     }
   };
 

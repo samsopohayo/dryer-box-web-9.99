@@ -1,4 +1,4 @@
-<!-- Control.vue - Updated -->
+<!-- Control.vue - Updated with proper responsive layout -->
 <template>
   <!-- Spacer for header height -->
   <div class="h-[95px]"></div>
@@ -10,13 +10,13 @@
     />
 
     <div
-      class="flex-1 transition-all duration-300"
-      :class="isSidebarCollapsed ? 'ml-16' : 'ml-64'"
+      class="flex-1 transition-all duration-300 ease-in-out max-md:ml-0"
+      :class="isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64'"
     >
       <Header @toggleSidebar="toggleSidebar" />
-      <main class="p-8">
-        <div class="max-w-7xl mx-auto space-y-8">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <main class="p-4 sm:p-6 lg:p-8">
+        <div class="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
             <ControlCard
               title="Heater"
               :status="heaterStatus"
@@ -40,12 +40,16 @@
           <TimerControl />
 
           <div
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-colors"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6 transition-colors"
           >
-            <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white">
+            <h3
+              class="font-bold text-base sm:text-lg mb-4 text-gray-800 dark:text-white"
+            >
               Pengaturan Tambahan
             </h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div
+              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
+            >
               <div>
                 <label
                   class="block text-sm text-gray-600 dark:text-gray-400 mb-2"

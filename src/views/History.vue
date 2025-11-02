@@ -30,7 +30,7 @@
                 class="w-full md:w-1/3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
                 @change="loadSessionData"
               >
-                <option value="">Semua data</option>
+                <option value="">-- Pilih session --</option>
                 <option v-for="(session, id) in sessions" :key="id" :value="id">
                   {{ session.session_id }} - {{ session.start_time }}
                 </option>
@@ -54,7 +54,10 @@
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-              <p class="text-lg mb-2">data masih kosong</p>
+              <p class="text-lg mb-2">Silakan pilih session pengeringan</p>
+              <p class="text-sm">
+                Total sessions tersedia: {{ Object.keys(sessions).length }}
+              </p>
             </div>
 
             <div v-else-if="isLoading" class="text-center py-12">
@@ -71,13 +74,13 @@
                 <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                   <p class="text-gray-600 dark:text-gray-400">Session ID</p>
                   <p class="font-semibold text-gray-800 dark:text-white">
-                    {{ currentSession?.session_id }}
+                    {{ currentSession?.session_id || "-" }}
                   </p>
                 </div>
                 <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                   <p class="text-gray-600 dark:text-gray-400">Waktu Mulai</p>
                   <p class="font-semibold text-gray-800 dark:text-white">
-                    {{ currentSession?.start_time }}
+                    {{ currentSession?.start_time || "-" }}
                   </p>
                 </div>
                 <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
@@ -91,7 +94,7 @@
                   <p
                     class="font-semibold capitalize text-gray-800 dark:text-white"
                   >
-                    {{ currentSession?.status }}
+                    {{ currentSession?.status || "-" }}
                   </p>
                 </div>
               </div>
@@ -102,7 +105,7 @@
                   <p
                     class="text-2xl font-bold text-blue-600 dark:text-blue-300"
                   >
-                    {{ currentSession?.initial_weight }} g
+                    {{ currentSession?.initial_weight?.toFixed(2) || "0" }} g
                   </p>
                 </div>
                 <div class="bg-green-50 dark:bg-green-900 p-4 rounded-lg">
@@ -110,7 +113,7 @@
                   <p
                     class="text-2xl font-bold text-green-600 dark:text-green-300"
                   >
-                    {{ currentSession?.final_weight || "-" }} g
+                    {{ currentSession?.final_weight?.toFixed(2) || "-" }} g
                   </p>
                 </div>
                 <div class="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg">
@@ -120,7 +123,7 @@
                   <p
                     class="text-2xl font-bold text-purple-600 dark:text-purple-300"
                   >
-                    {{ currentSession?.final_moisture || "-" }} %
+                    {{ currentSession?.final_moisture?.toFixed(2) || "-" }} %
                   </p>
                 </div>
               </div>
@@ -331,7 +334,6 @@ import Header from "@/components/Header.vue";
 import Sidebar from "@/components/Sidebar.vue";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { SessionDataPoint } from "@/types";
 
 const dryerStore = useDryerStore();
 const selectedSession = ref("");
@@ -342,17 +344,41 @@ const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
 };
 
-const sessions = computed(() => dryerStore.sessions);
+const sessions = computed(() => {
+  const allSessions: Record<string, any> = {};
+  const rawSessions = dryerStore.sessions;
+
+  // Extract info from each session
+  Object.keys(rawSessions).forEach((sessionId) => {
+    if (rawSessions[sessionId].info) {
+      allSessions[sessionId] = rawSessions[sessionId].info;
+    }
+  });
+
+  return allSessions;
+});
 
 const currentSession = computed(() => {
   if (!selectedSession.value) return null;
-  return sessions.value[selectedSession.value];
+  const session = sessions.value[selectedSession.value];
+  return session;
 });
 
 const sessionDataPoints = computed(() => {
-  const data = dryerStore.currentSessionData;
-  return Object.values(data).sort((a: any, b: any) => {
-    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+  if (!selectedSession.value) return [];
+
+  const rawData = dryerStore.currentSessionData;
+  if (!rawData || Object.keys(rawData).length === 0) return [];
+
+  return Object.values(rawData).sort((a: any, b: any) => {
+    // Parse timestamp format: "15/10/2025 15:03:55"
+    const parseTimestamp = (ts: string) => {
+      const [date, time] = ts.split(" ");
+      const [day, month, year] = date.split("/");
+      return new Date(`${year}-${month}-${day} ${time}`).getTime();
+    };
+
+    return parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp);
   });
 });
 
@@ -411,21 +437,21 @@ const downloadPDF = () => {
   );
   doc.text(`Status: ${currentSession.value.status}`, 14, infoY + 21);
   doc.text(
-    `Berat Awal: ${currentSession.value.initial_weight} gram`,
+    `Berat Awal: ${currentSession.value.initial_weight?.toFixed(2)} gram`,
     14,
     infoY + 28
   );
 
   if (currentSession.value.final_weight) {
     doc.text(
-      `Berat Akhir: ${currentSession.value.final_weight} gram`,
+      `Berat Akhir: ${currentSession.value.final_weight.toFixed(2)} gram`,
       14,
       infoY + 35
     );
   }
   if (currentSession.value.final_moisture) {
     doc.text(
-      `Kadar Air Akhir: ${currentSession.value.final_moisture}%`,
+      `Kadar Air Akhir: ${currentSession.value.final_moisture.toFixed(2)}%`,
       14,
       infoY + 42
     );
