@@ -262,7 +262,7 @@
         >
           <span>{{ statusText }}</span>
           <span class="text-gray-400">•</span>
-          <span>{{ currentDate }}</span>
+          <span>{{ currentDateTime }}</span>
         </div>
       </div>
     </div>
@@ -270,7 +270,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, h, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useDryerStore } from "@/stores/dryer";
 import { useTimerStore } from "@/stores/timer";
@@ -289,6 +289,7 @@ const notificationStore = useNotificationStore();
 
 const showNotifications = ref(false);
 const notificationRef = ref<HTMLElement | null>(null);
+const currentDateTime = ref("");
 
 const emit = defineEmits<{
   toggleSidebar: [];
@@ -308,6 +309,92 @@ const currentPage = computed(() => {
 });
 
 const locationText = computed(() => locationStore.location.city);
+
+// Fungsi untuk mendapatkan offset timezone dari koordinat (dalam jam)
+const getTimezoneOffset = (lon: number): number => {
+  // Hitung offset berdasarkan longitude
+  // Setiap 15 derajat = 1 jam perbedaan
+  const baseOffset = Math.round(lon / 15);
+
+  // Fine-tuning untuk zona waktu tertentu yang tidak tepat 15 derajat
+  // Asia/Kolkata (India) = UTC+5.5
+  if (lon >= 68 && lon <= 97 && lon < 100) {
+    return 5.5;
+  }
+
+  // Asia/Kathmandu (Nepal) = UTC+5.75
+  if (lon >= 80 && lon <= 88 && lon < 90) {
+    return 5.75;
+  }
+
+  return baseOffset;
+};
+
+// Update waktu berdasarkan lokasi dengan offset manual
+const updateDateTime = () => {
+  const lat = locationStore.location.lat;
+  const lon = locationStore.location.lon;
+
+  if (lat !== 0 && lon !== 0) {
+    // Dapatkan waktu UTC
+    const now = new Date();
+    const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
+
+    // Hitung offset target dalam milidetik
+    const targetOffset = getTimezoneOffset(lon);
+    const targetTime = new Date(utcTime + targetOffset * 3600000);
+
+    // Format waktu
+    const day = targetTime.getDate();
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "Mei",
+      "Jun",
+      "Jul",
+      "Agu",
+      "Sep",
+      "Okt",
+      "Nov",
+      "Des",
+    ];
+    const month = monthNames[targetTime.getMonth()];
+    const year = targetTime.getFullYear();
+    const hours = targetTime.getHours().toString().padStart(2, "0");
+    const minutes = targetTime.getMinutes().toString().padStart(2, "0");
+    const seconds = targetTime.getSeconds().toString().padStart(2, "0");
+
+    // Format: "2 Nov 2025, 14:30:45"
+    currentDateTime.value = `${day} ${month} ${year}, ${hours}:${minutes}:${seconds}`;
+  } else {
+    // Default: gunakan waktu lokal
+    const now = new Date();
+    const day = now.getDate();
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "Mei",
+      "Jun",
+      "Jul",
+      "Agu",
+      "Sep",
+      "Okt",
+      "Nov",
+      "Des",
+    ];
+    const month = monthNames[now.getMonth()];
+    const year = now.getFullYear();
+    const hours = now.getHours().toString().padStart(2, "0");
+    const minutes = now.getMinutes().toString().padStart(2, "0");
+    const seconds = now.getSeconds().toString().padStart(2, "0");
+
+    currentDateTime.value = `${day} ${month} ${year}, ${hours}:${minutes}:${seconds}`;
+  }
+};
 
 // Only show alert for REAL errors (not "None" or "No active errors")
 const showAlert = computed(() => {
@@ -363,17 +450,6 @@ const alertText = computed(() => {
 
 const statusText = computed(() => {
   return `Status: ${dryerStore.statusData.pengeringan}`;
-});
-
-const currentDate = computed(() => {
-  const now = new Date();
-  return now.toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 });
 
 // Weather icon component
@@ -484,11 +560,32 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 };
 
+let dateTimeInterval: number | null = null;
+
+// Watch untuk perubahan lokasi
+watch(
+  () => [locationStore.location.lat, locationStore.location.lon],
+  () => {
+    updateDateTime();
+  }
+);
+
 onMounted(() => {
   document.addEventListener("click", handleClickOutside);
+
+  // Update datetime immediately
+  updateDateTime();
+
+  // Update datetime setiap detik
+  dateTimeInterval = window.setInterval(updateDateTime, 1000);
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("click", handleClickOutside);
+
+  // Clear interval
+  if (dateTimeInterval !== null) {
+    clearInterval(dateTimeInterval);
+  }
 });
 </script>
