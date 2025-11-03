@@ -406,7 +406,7 @@ const showAlert = computed(() => {
     errorMsg.trim() !== "";
 
   return (
-    timerStore.timerData.enabled ||
+    timerStore.isRunning ||
     dryerStore.statusData.door_open ||
     dryerStore.statusData.temp_protection ||
     hasRealError
@@ -444,7 +444,7 @@ const alertText = computed(() => {
     return "ERROR: " + errorMsg;
   }
 
-  if (timerStore.timerData.enabled) return "Timer: " + timerStore.timerDisplay;
+  if (timerStore.isRunning) return "Timer: " + timerStore.timerDisplay;
   return "";
 });
 
