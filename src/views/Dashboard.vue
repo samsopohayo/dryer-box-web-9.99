@@ -3,18 +3,10 @@ import { computed, onMounted, ref, watch, onBeforeUnmount } from "vue";
 import { useDryerStore } from "@/stores/dryer";
 import Header from "@/components/Header.vue";
 import Sidebar from "@/components/Sidebar.vue";
+import InformationCard from "@/components/InformationCard.vue";
 import SensorCard from "@/components/SensorCard.vue";
 import StatusCard from "@/components/StatusCard.vue";
 import ChartMonitoring from "@/components/ChartMonitoring.vue";
-import {
-  Wifi,
-  Signal,
-  Network,
-  Cpu,
-  Thermometer,
-  Gauge,
-  AlertCircle,
-} from "lucide-vue-next";
 
 const dryerStore = useDryerStore();
 const chartData = ref<any[]>([]);
@@ -31,7 +23,6 @@ const networkStatus = computed(() => {
 });
 
 const wifiSSID = computed(() => dryerStore.systemStatus.wifi_ssid || "-");
-const wifiRSSI = computed(() => dryerStore.systemStatus.wifi_rssi || "-");
 
 const rssiSignalClass = computed(() => {
   const rssi = wifiRSSI.value;
@@ -364,122 +355,8 @@ onBeforeUnmount(() => {
             />
           </div>
 
-          <!-- Information -->
-          <div
-            class="mt-6 sm:mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6 transition-colors"
-          >
-            <h2
-              class="text-base sm:text-lg font-semibold mb-4 text-gray-800 dark:text-white flex items-center gap-2"
-            >
-              <Cpu class="w-5 h-5 text-blue-500" /> Informasi Sistem
-            </h2>
-
-            <div
-              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 text-sm"
-            >
-              <!-- Status jaringan -->
-              <div class="flex items-start gap-3">
-                <Network class="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
-                <div class="min-w-0">
-                  <p class="text-gray-600 dark:text-gray-400">
-                    Koneksi Jaringan:
-                  </p>
-                  <p
-                    class="font-semibold text-gray-800 dark:text-white truncate"
-                  >
-                    {{ networkStatus }}
-                  </p>
-                </div>
-              </div>
-
-              <!-- Nama SSID -->
-              <div class="flex items-start gap-3">
-                <Wifi class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                <div class="min-w-0">
-                  <p class="text-gray-600 dark:text-gray-400">Nama SSID:</p>
-                  <p
-                    class="font-semibold text-gray-800 dark:text-white truncate"
-                  >
-                    {{ wifiSSID }}
-                  </p>
-                </div>
-              </div>
-
-              <!-- Kekuatan sinyal WiFi -->
-              <div class="flex items-start gap-3">
-                <Signal class="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
-                <div class="min-w-0">
-                  <p class="text-gray-600 dark:text-gray-400">
-                    Kekuatan Sinyal WiFi:
-                  </p>
-                  <p
-                    :class="rssiSignalClass"
-                    class="font-semibold px-2 py-1 rounded-lg inline-block text-xs sm:text-sm"
-                  >
-                    {{ wifiRSSI }} dBm — {{ rssiSignalText }}
-                  </p>
-                </div>
-              </div>
-
-              <!-- IP Address -->
-              <div class="flex items-start gap-3">
-                <Network class="w-5 h-5 text-indigo-500 mt-0.5 flex-shrink-0" />
-                <div class="min-w-0">
-                  <p class="text-gray-600 dark:text-gray-400">Alamat IP:</p>
-                  <p
-                    class="font-semibold text-gray-800 dark:text-white truncate"
-                  >
-                    {{ ipAddress }}
-                  </p>
-                </div>
-              </div>
-
-              <!-- Sensor DHT22 -->
-              <div class="flex items-start gap-3">
-                <Thermometer
-                  class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0"
-                />
-                <div class="min-w-0">
-                  <p class="text-gray-600 dark:text-gray-400">
-                    Status Sensor DHT22:
-                  </p>
-                  <p class="font-semibold text-gray-800 dark:text-white">
-                    {{ sensorDHT22 }}
-                  </p>
-                </div>
-              </div>
-
-              <!-- Sensor HX711 -->
-              <div class="flex items-start gap-3">
-                <Gauge class="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                <div class="min-w-0">
-                  <p class="text-gray-600 dark:text-gray-400">
-                    Status Sensor HX711:
-                  </p>
-                  <p class="font-semibold text-gray-800 dark:text-white">
-                    {{ sensorHX711 }}
-                  </p>
-                </div>
-              </div>
-
-              <!-- Error Status -->
-              <div
-                class="flex items-start gap-3 col-span-1 sm:col-span-2 lg:col-span-4"
-              >
-                <AlertCircle
-                  class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0"
-                />
-                <div class="min-w-0 flex-1">
-                  <p class="text-gray-600 dark:text-gray-400">Status Error:</p>
-                  <p
-                    class="font-semibold text-gray-800 dark:text-white break-words"
-                  >
-                    {{ errorStatus }}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <!-- System Information -->
+          <InformationCard />
         </div>
       </main>
     </div>
