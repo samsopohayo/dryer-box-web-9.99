@@ -18,28 +18,24 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
             <ControlCard
               title="Heater"
-              :status="heaterStatus"
-              :isOn="isHeaterOn"
+              device="heater"
               @toggle="toggleHeater"
             />
-            <ControlCard
-              title="Fan"
-              :status="fanStatus"
-              :isOn="isFanOn"
-              @toggle="toggleFan"
-            />
+            <ControlCard title="Fan" device="fan" @toggle="toggleFan" />
             <ControlCard
               title="Exhaust"
-              :status="exhaustStatus"
-              :isOn="isExhaustOn"
+              device="exhaust"
               @toggle="toggleExhaust"
             />
           </div>
 
+          <!-- Timer Control -->
           <TimerControl />
 
+          <!-- Additional Settings -->
           <AdditionalSettings />
 
+          <!-- Location Setting -->
           <LocationSetting />
         </div>
       </main>
@@ -48,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref } from "vue";
 import { useDryerStore } from "@/stores/dryer";
 import Header from "@/components/Header.vue";
 import Sidebar from "@/components/Sidebar.vue";
@@ -64,22 +60,7 @@ const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
 };
 
-const heaterStatus = computed(() =>
-  dryerStore.controlData.manual_heater_state ? "on" : "off"
-);
-
-const fanStatus = computed(() =>
-  dryerStore.controlData.manual_fan_state ? "on" : "off"
-);
-
-const exhaustStatus = computed(() =>
-  dryerStore.controlData.manual_exhaust_state ? "on" : "off"
-);
-
-const isHeaterOn = computed(() => dryerStore.controlData.manual_heater_state);
-const isFanOn = computed(() => dryerStore.controlData.manual_fan_state);
-const isExhaustOn = computed(() => dryerStore.controlData.manual_exhaust_state);
-
+// Toggle functions
 const toggleHeater = async () => {
   const newState = !dryerStore.controlData.manual_heater_state;
   await dryerStore.updateControl("manual_heater_enable", true);

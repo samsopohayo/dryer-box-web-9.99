@@ -49,50 +49,66 @@
 
 <script setup lang="ts">
 import { computed, h } from "vue";
+import { useDryerStore } from "@/stores/dryer";
 
 const props = defineProps<{
   title: string;
-  status: string;
-  isOn: boolean;
+  device: "heater" | "fan" | "exhaust";
 }>();
 
 const emit = defineEmits<{
   toggle: [];
 }>();
 
+const dryerStore = useDryerStore();
+
+// Get device state from store based on device prop
+const isOn = computed(() => {
+  switch (props.device) {
+    case "heater":
+      return dryerStore.controlData.manual_heater_state;
+    case "fan":
+      return dryerStore.controlData.manual_fan_state;
+    case "exhaust":
+      return dryerStore.controlData.manual_exhaust_state;
+    default:
+      return false;
+  }
+});
+
 const statusText = computed(() => {
-  return props.isOn ? "Hidup" : "Mati";
+  return isOn.value ? "Hidup" : "Mati";
 });
 
 const statusClass = computed(() => {
-  return props.isOn
+  return isOn.value
     ? "text-green-600 dark:text-green-400 font-semibold"
     : "text-gray-600 dark:text-gray-400";
 });
 
 const buttonClass = computed(() => {
-  return props.isOn
+  return isOn.value
     ? "bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-500/50 dark:shadow-red-900/50"
     : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 dark:shadow-blue-900/50";
 });
 
 const buttonText = computed(() => {
-  return props.isOn ? "Matikan" : "Hidupkan";
+  return isOn.value ? "Matikan" : "Hidupkan";
 });
 
 // Icon background with gradient
 const iconBackgroundClass = computed(() => {
   const titleLower = props.title.toLowerCase();
   if (titleLower.includes("heater"))
-    return props.isOn
+    return isOn.value
       ? "bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900 dark:to-red-800"
       : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600";
   if (titleLower.includes("fan"))
-    return props.isOn
+    return isOn.value
       ? "bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800"
       : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600";
   if (titleLower.includes("exhaust"))
-    return props.isOn
+    return isOn.value
       ? "bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800"
       : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600";
   return "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600";
@@ -102,15 +118,15 @@ const iconBackgroundClass = computed(() => {
 const iconColorClass = computed(() => {
   const titleLower = props.title.toLowerCase();
   if (titleLower.includes("heater"))
-    return props.isOn
+    return isOn.value
       ? "text-red-600 dark:text-red-300"
       : "text-gray-600 dark:text-gray-400";
   if (titleLower.includes("fan"))
-    return props.isOn
+    return isOn.value
       ? "text-blue-600 dark:text-blue-300"
       : "text-gray-600 dark:text-gray-400";
   if (titleLower.includes("exhaust"))
-    return props.isOn
+    return isOn.value
       ? "text-green-600 dark:text-green-300"
       : "text-gray-600 dark:text-gray-400";
   return "text-gray-600 dark:text-gray-400";
@@ -144,7 +160,7 @@ const deviceIcon = computed(() => {
       {
         fill: "currentColor",
         viewBox: "0 0 24 24",
-        class: props.isOn ? "w-6 h-6 animate-spin" : "w-6 h-6",
+        class: isOn.value ? "w-6 h-6 animate-spin" : "w-6 h-6",
       },
       [
         h("path", {
@@ -193,7 +209,7 @@ const deviceIcon = computed(() => {
 
 // Button icon (power symbol)
 const buttonIcon = computed(() => {
-  if (props.isOn) {
+  if (isOn.value) {
     // Power off icon
     return h(
       "svg",
