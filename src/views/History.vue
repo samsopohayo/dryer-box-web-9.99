@@ -56,7 +56,7 @@
               </svg>
               <p class="text-lg mb-2">Silakan pilih session pengeringan</p>
               <p class="text-sm">
-                Total sessions tersedia: {{ Object.keys(sessions).length }}
+                Total sesi tersedia: {{ Object.keys(sessions).length }}
               </p>
             </div>
 

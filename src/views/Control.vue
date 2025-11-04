@@ -1,4 +1,3 @@
-<!-- Control.vue - Updated with proper responsive layout -->
 <template>
   <!-- Spacer for header height -->
   <div class="h-[95px]"></div>
@@ -39,55 +38,7 @@
 
           <TimerControl />
 
-          <div
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6 transition-colors"
-          >
-            <h3
-              class="font-bold text-base sm:text-lg mb-4 text-gray-800 dark:text-white"
-            >
-              Pengaturan Tambahan
-            </h3>
-            <div
-              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
-            >
-              <div>
-                <label
-                  class="block text-sm text-gray-600 dark:text-gray-400 mb-2"
-                  >Target Kelembapan Min (%)</label
-                >
-                <input
-                  v-model.number="targetHumidityMin"
-                  type="number"
-                  class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
-                  @change="updateConfig"
-                />
-              </div>
-              <div>
-                <label
-                  class="block text-sm text-gray-600 dark:text-gray-400 mb-2"
-                  >Target Kelembapan Max (%)</label
-                >
-                <input
-                  v-model.number="targetHumidityMax"
-                  type="number"
-                  class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
-                  @change="updateConfig"
-                />
-              </div>
-              <div>
-                <label
-                  class="block text-sm text-gray-600 dark:text-gray-400 mb-2"
-                  >Target Kadar Air (%)</label
-                >
-                <input
-                  v-model.number="targetMoisture"
-                  type="number"
-                  class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
-                  @change="updateConfig"
-                />
-              </div>
-            </div>
-          </div>
+          <AdditionalSettings />
 
           <LocationSetting />
         </div>
@@ -97,12 +48,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed } from "vue";
 import { useDryerStore } from "@/stores/dryer";
 import Header from "@/components/Header.vue";
 import Sidebar from "@/components/Sidebar.vue";
 import ControlCard from "@/components/ControlCard.vue";
 import TimerControl from "@/components/TimerControl.vue";
+import AdditionalSettings from "@/components/AdditionalSettings.vue";
 import LocationSetting from "@/components/LocationSetting.vue";
 
 const dryerStore = useDryerStore();
@@ -112,26 +64,14 @@ const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
 };
 
-const targetHumidityMin = ref(dryerStore.configData.targetHumidityMin);
-const targetHumidityMax = ref(dryerStore.configData.targetHumidityMax);
-const targetMoisture = ref(dryerStore.configData.targetMoisture);
-
-watch(
-  () => dryerStore.configData,
-  (newConfig) => {
-    targetHumidityMin.value = newConfig.targetHumidityMin;
-    targetHumidityMax.value = newConfig.targetHumidityMax;
-    targetMoisture.value = newConfig.targetMoisture;
-  },
-  { deep: true }
-);
-
 const heaterStatus = computed(() =>
   dryerStore.controlData.manual_heater_state ? "on" : "off"
 );
+
 const fanStatus = computed(() =>
   dryerStore.controlData.manual_fan_state ? "on" : "off"
 );
+
 const exhaustStatus = computed(() =>
   dryerStore.controlData.manual_exhaust_state ? "on" : "off"
 );
@@ -156,13 +96,5 @@ const toggleExhaust = async () => {
   const newState = !dryerStore.controlData.manual_exhaust_state;
   await dryerStore.updateControl("manual_exhaust_enable", true);
   await dryerStore.updateControl("manual_exhaust_state", newState);
-};
-
-const updateConfig = async () => {
-  await dryerStore.updateConfig({
-    targetHumidityMin: targetHumidityMin.value,
-    targetHumidityMax: targetHumidityMax.value,
-    targetMoisture: targetMoisture.value,
-  });
 };
 </script>
