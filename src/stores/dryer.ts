@@ -19,6 +19,8 @@ export const useDryerStore = defineStore("dryer", () => {
     targetMoisture: 0,
     targetHumidityMin: 0,
     targetHumidityMax: 0,
+    targetTemperatureMin: 0,
+    targetTemperatureMax: 0,
   });
 
   const controlData = ref<ControlData>({
@@ -131,6 +133,12 @@ export const useDryerStore = defineStore("dryer", () => {
     }
     if (config.targetHumidityMax !== undefined) {
       updates.targetHumidityMax = config.targetHumidityMax;
+    }
+    if (config.targetTemperatureMin !== undefined) {
+      updates.targetTemperatureMin = config.targetTemperatureMin;
+    }
+    if (config.targetTemperatureMax !== undefined) {
+      updates.targetTemperatureMax = config.targetTemperatureMax;
     }
     await set(dbRef(database, "config"), updates);
   };

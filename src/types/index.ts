@@ -5,6 +5,8 @@ export interface ConfigData {
   targetMoisture: number;
   targetHumidityMin: number;
   targetHumidityMax: number;
+  targetTemperatureMin: number;
+  targetTemperatureMax: number;
 }
 
 export interface ControlData {

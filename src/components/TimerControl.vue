@@ -341,26 +341,6 @@
         <span>Stop Timer</span>
       </button>
     </div>
-
-    <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
-      <p class="text-xs text-gray-700 dark:text-gray-300">
-        <strong>💡 Catatan:</strong>
-      </p>
-      <ul
-        class="text-xs text-gray-700 dark:text-gray-300 mt-2 ml-4 list-disc space-y-1"
-      >
-        <li>
-          Input otomatis terkonversi: ≥60 detik → menit, ≥60 menit → jam, ≥24
-          jam → hari
-        </li>
-        <li>
-          Klik "Mulai Timer" untuk memulai, klik lagi untuk "Pause/Resume"
-        </li>
-        <li>Timer mulai countdown setelah sistem alat mengkonfirmasi</li>
-        <li>Jika timer aktif, target selesai adalah timer (bukan kadar air)</li>
-        <li>Timer akan otomatis reset ke 0 saat session baru dimulai</li>
-      </ul>
-    </div>
   </div>
 </template>
 

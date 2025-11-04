@@ -7,7 +7,9 @@
   "config": {
     "targetMoisture": 15,
     "targetHumidityMin": 30,
-    "targetHumidityMax": 40
+    "targetHumidityMax": 40,
+    "targetTemperatureMin": 60,
+    "targetTemperatureMax": 80
   },
   "sensor": {
     "suhu": 0,
