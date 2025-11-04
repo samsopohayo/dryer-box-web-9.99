@@ -1,4 +1,4 @@
-// FILE: src/stores/dryer.ts (FIXED)
+// FILE: src/stores/dryer.ts (UPDATED - Added SystemStatus type)
 // ============================================
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
@@ -12,6 +12,7 @@ import type {
   ControlData,
   SessionInfo,
   SessionDataPoint,
+  SystemStatus, // ADDED
 } from "@/types";
 
 export const useDryerStore = defineStore("dryer", () => {
@@ -48,6 +49,7 @@ export const useDryerStore = defineStore("dryer", () => {
     door_open: false,
     temp_protection: false,
     humidity_control: false,
+    temperature_control: false,
   });
 
   const weatherData = ref<WeatherData>({
@@ -56,12 +58,20 @@ export const useDryerStore = defineStore("dryer", () => {
     temp: 0,
   });
 
-  const systemStatus = ref({
+  // UPDATED: Use SystemStatus type instead of any
+  const systemStatus = ref<SystemStatus>({
     status: "ready",
     last_update: "",
     current_session: "",
     process_status: "idle",
     last_error: "None",
+    wifi_ssid: undefined,
+    wifi_rssi: undefined,
+    ip_address: undefined,
+    sensor_dht22: undefined,
+    sensor_hx711: undefined,
+    version: undefined,
+    last_boot: undefined,
   });
 
   const sessions = ref<Record<string, any>>({});
@@ -102,7 +112,21 @@ export const useDryerStore = defineStore("dryer", () => {
 
     onValue(dbRef(database, "system"), (snapshot) => {
       if (snapshot.exists()) {
-        systemStatus.value = snapshot.val();
+        const data = snapshot.val();
+        systemStatus.value = {
+          status: data.status || "ready",
+          last_update: data.last_update || "",
+          current_session: data.current_session || "",
+          process_status: data.process_status || "idle",
+          last_error: data.last_error || "None",
+          wifi_ssid: data.wifi_ssid,
+          wifi_rssi: data.wifi_rssi,
+          ip_address: data.ip_address,
+          sensor_dht22: data.sensor_dht22,
+          sensor_hx711: data.sensor_hx711,
+          version: data.version,
+          last_boot: data.last_boot,
+        };
       }
     });
 
@@ -145,7 +169,6 @@ export const useDryerStore = defineStore("dryer", () => {
 
   const fetchSessionData = async (sessionId: string) => {
     try {
-      // Fetch from sessions/{sessionId}/data
       const snapshot = await get(dbRef(database, `sessions/${sessionId}/data`));
 
       if (snapshot.exists()) {

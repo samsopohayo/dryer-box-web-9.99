@@ -9,16 +9,17 @@
     />
 
     <div
-      class="flex-1 transition-all duration-300"
-      :class="isSidebarCollapsed ? 'ml-16' : 'ml-64'"
+      class="flex-1 transition-all duration-300 ease-in-out max-md:ml-0"
+      :class="isSidebarCollapsed ? 'md:ml-16' : 'md:ml-64'"
     >
       <Header @toggleSidebar="toggleSidebar" />
 
-      <main class="p-8">
+      <main class="p-4 sm:p-6 lg:p-8">
         <div class="max-w-7xl mx-auto">
           <div
-            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-colors"
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6 transition-colors"
           >
+            <!-- Session Selector -->
             <div class="mb-6">
               <label
                 class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
@@ -37,6 +38,7 @@
               </select>
             </div>
 
+            <!-- Empty State -->
             <div
               v-if="!selectedSession"
               class="text-center py-12 text-gray-500 dark:text-gray-400"
@@ -54,12 +56,15 @@
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-              <p class="text-lg mb-2">Silakan pilih session pengeringan</p>
-              <p class="text-sm">
+              <p class="text-base sm:text-lg mb-2">
+                Silakan pilih session pengeringan
+              </p>
+              <p class="text-xs sm:text-sm">
                 Total sesi tersedia: {{ Object.keys(sessions).length }}
               </p>
             </div>
 
+            <!-- Loading State -->
             <div v-else-if="isLoading" class="text-center py-12">
               <div
                 class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"
@@ -69,210 +74,373 @@
               </p>
             </div>
 
+            <!-- Data Display -->
             <div v-else>
-              <div class="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                  <p class="text-gray-600 dark:text-gray-400">Session ID</p>
-                  <p class="font-semibold text-gray-800 dark:text-white">
+              <!-- Session Info Cards - Responsive Grid -->
+              <div
+                class="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-xs sm:text-sm"
+              >
+                <div
+                  class="bg-gray-50 dark:bg-gray-700 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-400 truncate">
+                    Session ID
+                  </p>
+                  <p
+                    class="font-semibold text-gray-800 dark:text-white truncate"
+                  >
                     {{ currentSession?.session_id || "-" }}
                   </p>
                 </div>
-                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                  <p class="text-gray-600 dark:text-gray-400">Waktu Mulai</p>
-                  <p class="font-semibold text-gray-800 dark:text-white">
-                    {{ currentSession?.start_time || "-" }}
+                <div
+                  class="bg-gray-50 dark:bg-gray-700 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-400 truncate">
+                    Waktu Mulai
                   </p>
-                </div>
-                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                  <p class="text-gray-600 dark:text-gray-400">Waktu Selesai</p>
-                  <p class="font-semibold text-gray-800 dark:text-white">
-                    {{ currentSession?.end_time || "Sedang berjalan" }}
-                  </p>
-                </div>
-                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                  <p class="text-gray-600 dark:text-gray-400">Status</p>
                   <p
-                    class="font-semibold capitalize text-gray-800 dark:text-white"
+                    class="font-semibold text-gray-800 dark:text-white truncate"
+                  >
+                    {{ formatDateTime(currentSession?.start_time) }}
+                  </p>
+                </div>
+                <div
+                  class="bg-gray-50 dark:bg-gray-700 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-400 truncate">
+                    Waktu Selesai
+                  </p>
+                  <p
+                    class="font-semibold text-gray-800 dark:text-white truncate"
+                  >
+                    {{
+                      currentSession?.end_time
+                        ? formatDateTime(currentSession.end_time)
+                        : "Berjalan"
+                    }}
+                  </p>
+                </div>
+                <div
+                  class="bg-gray-50 dark:bg-gray-700 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-400 truncate">
+                    Status
+                  </p>
+                  <p
+                    class="font-semibold capitalize text-gray-800 dark:text-white truncate"
                   >
                     {{ currentSession?.status || "-" }}
                   </p>
                 </div>
               </div>
 
-              <div class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div class="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
-                  <p class="text-gray-600 dark:text-gray-300">Berat Awal</p>
+              <!-- Weight & Moisture Cards - Responsive Grid -->
+              <div
+                class="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm"
+              >
+                <div
+                  class="bg-blue-50 dark:bg-blue-900 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-300 truncate">
+                    Berat Awal
+                  </p>
                   <p
-                    class="text-2xl font-bold text-blue-600 dark:text-blue-300"
+                    class="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-300 truncate"
                   >
                     {{ currentSession?.initial_weight?.toFixed(2) || "0" }} g
                   </p>
                 </div>
-                <div class="bg-green-50 dark:bg-green-900 p-4 rounded-lg">
-                  <p class="text-gray-600 dark:text-gray-300">Berat Akhir</p>
+                <div
+                  class="bg-green-50 dark:bg-green-900 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-300 truncate">
+                    Berat Akhir
+                  </p>
                   <p
-                    class="text-2xl font-bold text-green-600 dark:text-green-300"
+                    class="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-300 truncate"
                   >
                     {{ currentSession?.final_weight?.toFixed(2) || "-" }} g
                   </p>
                 </div>
-                <div class="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg">
-                  <p class="text-gray-600 dark:text-gray-300">
+                <div
+                  class="bg-purple-50 dark:bg-purple-900 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-300 truncate">
                     Kadar Air Akhir
                   </p>
                   <p
-                    class="text-2xl font-bold text-purple-600 dark:text-purple-300"
+                    class="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-300 truncate"
                   >
                     {{ currentSession?.final_moisture?.toFixed(2) || "-" }} %
                   </p>
                 </div>
               </div>
 
+              <!-- Data Points Count -->
               <div
                 v-if="dataPointsCount > 0"
-                class="mb-4 text-sm text-gray-600 dark:text-gray-400"
+                class="mb-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400"
               >
                 Total data points:
                 <span class="font-semibold">{{ dataPointsCount }}</span>
               </div>
 
+              <!-- Table - Mobile Optimized -->
               <div
-                class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700"
+                class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
               >
-                <table class="w-full">
-                  <thead class="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        No
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Waktu
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Suhu (°C)
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Humidity (%)
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Kadar Air (%)
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Berat (g)
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Status
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Heater
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Fan
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Exhaust
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody
-                    class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
-                  >
-                    <tr v-if="dataPointsCount === 0">
-                      <td
-                        colspan="10"
-                        class="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
-                      >
-                        Tidak ada data untuk session ini
-                      </td>
-                    </tr>
-                    <tr
-                      v-for="(data, index) in sessionDataPoints"
-                      :key="index"
-                      class="hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                <!-- Desktop Table -->
+                <div class="hidden lg:block overflow-x-auto">
+                  <table class="w-full">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                      <tr>
+                        <th
+                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        >
+                          No
+                        </th>
+                        <th
+                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        >
+                          Waktu
+                        </th>
+                        <th
+                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        >
+                          Suhu (°C)
+                        </th>
+                        <th
+                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        >
+                          Humidity (%)
+                        </th>
+                        <th
+                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        >
+                          Kadar Air (%)
+                        </th>
+                        <th
+                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        >
+                          Berat (g)
+                        </th>
+                        <th
+                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        >
+                          Status
+                        </th>
+                        <th
+                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        >
+                          Heater
+                        </th>
+                        <th
+                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        >
+                          Fan
+                        </th>
+                        <th
+                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        >
+                          Exhaust
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody
+                      class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
                     >
-                      <td
-                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                      <tr v-if="dataPointsCount === 0">
+                        <td
+                          colspan="10"
+                          class="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
+                        >
+                          Tidak ada data untuk session ini
+                        </td>
+                      </tr>
+                      <tr
+                        v-for="(data, index) in sessionDataPoints"
+                        :key="index"
+                        class="hover:bg-gray-50 dark:hover:bg-gray-700 transition"
                       >
-                        {{ index + 1 }}
-                      </td>
-                      <td
-                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                      >
-                        {{ data.timestamp }}
-                      </td>
-                      <td
-                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                      >
-                        {{ data.temperature.toFixed(1) }}
-                      </td>
-                      <td
-                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                      >
-                        {{ data.humidity.toFixed(1) }}
-                      </td>
-                      <td
-                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                      >
-                        {{ data.moisture.toFixed(1) }}
-                      </td>
-                      <td
-                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                      >
-                        {{ data.weight.toFixed(1) }}
-                      </td>
-                      <td class="px-4 py-3 text-sm">
+                        <td
+                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                        >
+                          {{ index + 1 }}
+                        </td>
+                        <td
+                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                        >
+                          {{ data.timestamp }}
+                        </td>
+                        <td
+                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                        >
+                          {{ data.temperature.toFixed(1) }}
+                        </td>
+                        <td
+                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                        >
+                          {{ data.humidity.toFixed(1) }}
+                        </td>
+                        <td
+                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                        >
+                          {{ data.moisture.toFixed(1) }}
+                        </td>
+                        <td
+                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                        >
+                          {{ data.weight.toFixed(1) }}
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                          <span
+                            class="px-2 py-1 rounded-full text-xs font-semibold"
+                            :class="getStatusClass(data.status)"
+                          >
+                            {{ data.status }}
+                          </span>
+                        </td>
+                        <td
+                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                        >
+                          {{ data.heater }}
+                        </td>
+                        <td
+                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                        >
+                          {{ data.fan }}
+                        </td>
+                        <td
+                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                        >
+                          {{ data.exhaust }}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Mobile/Tablet Cards View -->
+                <div
+                  class="lg:hidden divide-y divide-gray-200 dark:divide-gray-700"
+                >
+                  <div
+                    v-if="dataPointsCount === 0"
+                    class="p-6 text-center text-gray-500 dark:text-gray-400"
+                  >
+                    Tidak ada data untuk session ini
+                  </div>
+
+                  <div
+                    v-for="(data, index) in sessionDataPoints"
+                    :key="index"
+                    class="p-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                  >
+                    <!-- Card Header -->
+                    <div
+                      class="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700"
+                    >
+                      <div class="flex items-center space-x-2">
+                        <span
+                          class="text-xs font-semibold text-gray-500 dark:text-gray-400"
+                        >
+                          #{{ index + 1 }}
+                        </span>
                         <span
                           class="px-2 py-1 rounded-full text-xs font-semibold"
                           :class="getStatusClass(data.status)"
                         >
                           {{ data.status }}
                         </span>
-                      </td>
-                      <td
-                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                      >
-                        {{ data.heater }}
-                      </td>
-                      <td
-                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                      >
-                        {{ data.fan }}
-                      </td>
-                      <td
-                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                      >
-                        {{ data.exhaust }}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                      </div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ data.timestamp }}
+                      </div>
+                    </div>
+
+                    <!-- Card Body - Two Column Grid -->
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                          Suhu
+                        </p>
+                        <p
+                          class="text-sm font-semibold text-red-600 dark:text-red-400"
+                        >
+                          {{ data.temperature.toFixed(1) }}°C
+                        </p>
+                      </div>
+                      <div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                          Humidity
+                        </p>
+                        <p
+                          class="text-sm font-semibold text-blue-600 dark:text-blue-400"
+                        >
+                          {{ data.humidity.toFixed(1) }}%
+                        </p>
+                      </div>
+                      <div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                          Kadar Air
+                        </p>
+                        <p
+                          class="text-sm font-semibold text-green-600 dark:text-green-400"
+                        >
+                          {{ data.moisture.toFixed(1) }}%
+                        </p>
+                      </div>
+                      <div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                          Berat
+                        </p>
+                        <p
+                          class="text-sm font-semibold text-purple-600 dark:text-purple-400"
+                        >
+                          {{ data.weight.toFixed(1) }} g
+                        </p>
+                      </div>
+                      <div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                          Heater
+                        </p>
+                        <p
+                          class="text-sm font-semibold text-gray-800 dark:text-gray-200"
+                        >
+                          {{ data.heater }}
+                        </p>
+                      </div>
+                      <div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                          Fan
+                        </p>
+                        <p
+                          class="text-sm font-semibold text-gray-800 dark:text-gray-200"
+                        >
+                          {{ data.fan }}
+                        </p>
+                      </div>
+                      <div class="col-span-2">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                          Exhaust
+                        </p>
+                        <p
+                          class="text-sm font-semibold text-gray-800 dark:text-gray-200"
+                        >
+                          {{ data.exhaust }}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div class="mt-6 flex flex-col sm:flex-row gap-4">
+              <!-- Action Buttons - Responsive -->
+              <div class="mt-6 flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <button
                   @click="downloadPDF"
                   :disabled="dataPointsCount === 0"
-                  class="flex-1 sm:flex-none px-6 py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  class="w-full sm:flex-1 px-4 sm:px-6 py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                 >
                   <svg
                     class="w-5 h-5"
@@ -291,7 +459,7 @@
                 </button>
                 <button
                   @click="deleteSession"
-                  class="flex-1 sm:flex-none px-6 py-3 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition flex items-center justify-center space-x-2"
+                  class="w-full sm:flex-1 px-4 sm:px-6 py-3 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition flex items-center justify-center space-x-2"
                 >
                   <svg
                     class="w-5 h-5"
@@ -310,11 +478,15 @@
                 </button>
               </div>
 
-              <div class="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900 rounded-lg">
+              <!-- Info Note -->
+              <div
+                class="mt-4 p-3 sm:p-4 bg-yellow-50 dark:bg-yellow-900 rounded-lg"
+              >
                 <p class="text-xs text-gray-700 dark:text-gray-300">
-                  <strong>Catatan:</strong> Data rekap akan otomatis tersimpan
-                  setiap 15 detik selama proses pengeringan berlangsung. Export
-                  PDF akan menyertakan semua data dalam tabel.
+                  <strong>💡 Catatan:</strong> Data rekap akan otomatis
+                  tersimpan setiap 15 detik selama proses pengeringan
+                  berlangsung. Export PDF akan menyertakan semua data dalam
+                  tabel.
                 </p>
               </div>
             </div>
@@ -338,7 +510,7 @@ import autoTable from "jspdf-autotable";
 const dryerStore = useDryerStore();
 const selectedSession = ref("");
 const isLoading = ref(false);
-const isSidebarCollapsed = ref(false);
+const isSidebarCollapsed = ref(true);
 
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
@@ -348,7 +520,6 @@ const sessions = computed(() => {
   const allSessions: Record<string, any> = {};
   const rawSessions = dryerStore.sessions;
 
-  // Extract info from each session
   Object.keys(rawSessions).forEach((sessionId) => {
     if (rawSessions[sessionId].info) {
       allSessions[sessionId] = rawSessions[sessionId].info;
@@ -371,7 +542,6 @@ const sessionDataPoints = computed(() => {
   if (!rawData || Object.keys(rawData).length === 0) return [];
 
   return Object.values(rawData).sort((a: any, b: any) => {
-    // Parse timestamp format: "15/10/2025 15:03:55"
     const parseTimestamp = (ts: string) => {
       const [date, time] = ts.split(" ");
       const [day, month, year] = date.split("/");
@@ -385,6 +555,28 @@ const sessionDataPoints = computed(() => {
 const dataPointsCount = computed(() => {
   return sessionDataPoints.value.length;
 });
+
+const formatDateTime = (dateTime: string | undefined) => {
+  if (!dateTime) return "-";
+
+  // For mobile, show shorter format
+  const parts = dateTime.split(" ");
+  if (parts.length === 2) {
+    const [date, time] = parts;
+    const [day, month, year] = date.split("/");
+    const [hours, minutes] = time.split(":");
+
+    // Mobile: DD/MM HH:MM
+    if (window.innerWidth < 640) {
+      return `${day}/${month} ${hours}:${minutes}`;
+    }
+
+    // Desktop: full format
+    return dateTime;
+  }
+
+  return dateTime;
+};
 
 const loadSessionData = async () => {
   if (selectedSession.value) {
@@ -418,12 +610,10 @@ const downloadPDF = () => {
 
   const doc = new jsPDF();
 
-  // Header
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
   doc.text("LAPORAN PENGERINGAN CABAI", 105, 20, { align: "center" });
 
-  // Session Info
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
 
@@ -457,7 +647,6 @@ const downloadPDF = () => {
     );
   }
 
-  // Summary statistics
   const avgTemp =
     sessionDataPoints.value.reduce(
       (sum: number, d: any) => sum + d.temperature,
@@ -478,7 +667,6 @@ const downloadPDF = () => {
     infoY + 63
   );
 
-  // Table data
   const tableData = sessionDataPoints.value.map((data: any, index: number) => [
     index + 1,
     data.timestamp,
@@ -536,7 +724,6 @@ const downloadPDF = () => {
     },
   });
 
-  // Footer
   const pageCount = (doc as any).internal.getNumberOfPages();
   doc.setFontSize(8);
   doc.setTextColor(128);
@@ -555,7 +742,6 @@ const downloadPDF = () => {
     );
   }
 
-  // Save PDF
   const filename = `rekap-pengeringan-${selectedSession.value}.pdf`;
   doc.save(filename);
 };

@@ -1,4 +1,4 @@
-// FILE: src/types/index.ts
+// FILE: src/types/index.ts (UPDATED - Added SystemStatus interface)
 // ============================================
 
 export interface ConfigData {
@@ -34,6 +34,7 @@ export interface StatusData {
   door_open: boolean;
   temp_protection: boolean;
   humidity_control: boolean;
+  temperature_control: boolean; // Added missing field
 }
 
 export interface WeatherData {
@@ -48,6 +49,21 @@ export interface TimerData {
   remaining: number;
 }
 
+export interface SystemStatus {
+  status: string;
+  last_update: string;
+  current_session: string;
+  process_status: string;
+  last_error: string;
+  wifi_ssid?: string;
+  wifi_rssi?: number;
+  ip_address?: string;
+  sensor_dht22?: boolean;
+  sensor_hx711?: boolean;
+  version?: string;
+  last_boot?: string;
+}
+
 export interface SessionInfo {
   session_id: string;
   start_time: string;
@@ -55,6 +71,12 @@ export interface SessionInfo {
   initial_weight: number;
   final_weight?: number;
   final_moisture?: number;
+  initial_humidity?: number;
+  humidity_target_min?: number;
+  humidity_target_max?: number;
+  initial_temperature?: number;
+  temperature_target_min?: number;
+  temperature_target_max?: number;
   status: string;
 }
 
@@ -68,4 +90,6 @@ export interface SessionDataPoint {
   heater: string;
   fan: string;
   exhaust: string;
+  humidity_control?: boolean;
+  temperature_control?: boolean;
 }
