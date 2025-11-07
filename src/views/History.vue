@@ -176,20 +176,26 @@
                 </div>
               </div>
 
-              <!-- Data Points Count -->
-              <div
-                v-if="dataPointsCount > 0"
-                class="mb-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400"
-              >
-                Total data points:
-                <span class="font-semibold">{{ dataPointsCount }}</span>
+              <!-- Data Points Count & Notification Summary -->
+              <div class="mb-4 flex flex-wrap gap-4 text-xs sm:text-sm">
+                <div class="text-gray-600 dark:text-gray-400">
+                  Total data points:
+                  <span class="font-semibold">{{ dataPointsCount }}</span>
+                </div>
+                <div class="text-gray-600 dark:text-gray-400">
+                  Total notifikasi:
+                  <span
+                    class="font-semibold text-orange-600 dark:text-orange-400"
+                  >
+                    {{ totalNotifications }}
+                  </span>
+                </div>
               </div>
 
-              <!-- Table - Mobile Optimized -->
+              <!-- Table - Desktop -->
               <div
                 class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
               >
-                <!-- Desktop Table -->
                 <div class="hidden lg:block overflow-x-auto">
                   <table class="w-full">
                     <thead class="bg-gray-50 dark:bg-gray-700">
@@ -244,6 +250,11 @@
                         >
                           Exhaust
                         </th>
+                        <th
+                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider min-w-[200px]"
+                        >
+                          Keterangan
+                        </th>
                       </tr>
                     </thead>
                     <tbody
@@ -251,7 +262,7 @@
                     >
                       <tr v-if="dataPointsCount === 0">
                         <td
-                          colspan="10"
+                          colspan="11"
                           class="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
                         >
                           Tidak ada data untuk session ini
@@ -268,7 +279,7 @@
                           {{ index + 1 }}
                         </td>
                         <td
-                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300 whitespace-nowrap"
                         >
                           {{ data.timestamp }}
                         </td>
@@ -294,7 +305,7 @@
                         </td>
                         <td class="px-4 py-3 text-sm">
                           <span
-                            class="px-2 py-1 rounded-full text-xs font-semibold"
+                            class="px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
                             :class="getStatusClass(data.status)"
                           >
                             {{ data.status }}
@@ -314,6 +325,29 @@
                           class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
                         >
                           {{ data.exhaust }}
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                          <div
+                            v-if="
+                              data.notifications &&
+                              data.notifications.length > 0
+                            "
+                            class="space-y-1"
+                          >
+                            <div
+                              v-for="(notif, nIdx) in data.notifications"
+                              :key="nIdx"
+                              class="text-xs"
+                              :class="getNotificationColor(notif)"
+                            >
+                              {{ notif }}
+                            </div>
+                          </div>
+                          <span
+                            v-else
+                            class="text-gray-400 dark:text-gray-500 text-xs"
+                            >-</span
+                          >
                         </td>
                       </tr>
                     </tbody>
@@ -359,7 +393,7 @@
                     </div>
 
                     <!-- Card Body - Two Column Grid -->
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-2 gap-3 mb-3">
                       <div>
                         <p class="text-xs text-gray-500 dark:text-gray-400">
                           Suhu
@@ -431,6 +465,32 @@
                         </p>
                       </div>
                     </div>
+
+                    <!-- Notifications Section (Mobile) -->
+                    <div
+                      v-if="data.notifications && data.notifications.length > 0"
+                      class="pt-3 border-t border-gray-200 dark:border-gray-700"
+                    >
+                      <p
+                        class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-semibold"
+                      >
+                        Keterangan:
+                      </p>
+                      <div class="space-y-2">
+                        <div
+                          v-for="(notif, nIdx) in data.notifications"
+                          :key="nIdx"
+                          class="p-2 rounded bg-gray-50 dark:bg-gray-700"
+                        >
+                          <span
+                            class="text-xs"
+                            :class="getNotificationColor(notif)"
+                          >
+                            {{ notif }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -485,8 +545,9 @@
                 <p class="text-xs text-gray-700 dark:text-gray-300">
                   <strong>💡 Catatan:</strong> Data rekap akan otomatis
                   tersimpan setiap 15 detik selama proses pengeringan
-                  berlangsung. Export PDF akan menyertakan semua data dalam
-                  tabel.
+                  berlangsung. Kolom keterangan menampilkan notifikasi sistem
+                  yang terjadi pada waktu data point tersebut. Export PDF akan
+                  menyertakan semua data termasuk keterangan.
                 </p>
               </div>
             </div>
@@ -556,22 +617,25 @@ const dataPointsCount = computed(() => {
   return sessionDataPoints.value.length;
 });
 
+const totalNotifications = computed(() => {
+  return sessionDataPoints.value.reduce((total: number, data: any) => {
+    return total + (data.notifications?.length || 0);
+  }, 0);
+});
+
 const formatDateTime = (dateTime: string | undefined) => {
   if (!dateTime) return "-";
 
-  // For mobile, show shorter format
   const parts = dateTime.split(" ");
   if (parts.length === 2) {
     const [date, time] = parts;
     const [day, month, year] = date.split("/");
     const [hours, minutes] = time.split(":");
 
-    // Mobile: DD/MM HH:MM
     if (window.innerWidth < 640) {
       return `${day}/${month} ${hours}:${minutes}`;
     }
 
-    // Desktop: full format
     return dateTime;
   }
 
@@ -605,45 +669,71 @@ const getStatusClass = (status: string) => {
   return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
 };
 
+const getNotificationColor = (notification: string): string => {
+  const notifLower = notification.toLowerCase();
+  if (notifLower.includes("error") || notifLower.includes("gagal")) {
+    return "text-red-700 dark:text-red-300 font-medium";
+  }
+  if (
+    notifLower.includes("warning") ||
+    notifLower.includes("peringatan") ||
+    notifLower.includes("pintu") ||
+    notifLower.includes("terbuka")
+  ) {
+    return "text-yellow-700 dark:text-yellow-300 font-medium";
+  }
+  if (notifLower.includes("proteksi") || notifLower.includes("suhu tinggi")) {
+    return "text-red-700 dark:text-red-300 font-medium";
+  }
+  if (
+    notifLower.includes("selesai") ||
+    notifLower.includes("completed") ||
+    notifLower.includes("success")
+  ) {
+    return "text-green-700 dark:text-green-300 font-medium";
+  }
+  return "text-gray-700 dark:text-gray-300";
+};
+
 const downloadPDF = () => {
   if (!currentSession.value || dataPointsCount.value === 0) return;
 
-  const doc = new jsPDF();
+  const doc = new jsPDF("landscape");
 
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
-  doc.text("LAPORAN PENGERINGAN CABAI", 105, 20, { align: "center" });
+  doc.text("LAPORAN PENGERINGAN CABAI", 148, 15, { align: "center" });
 
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
 
-  const infoY = 35;
+  const infoY = 25;
   doc.text(`Session ID: ${currentSession.value.session_id}`, 14, infoY);
-  doc.text(`Waktu Mulai: ${currentSession.value.start_time}`, 14, infoY + 7);
+  doc.text(`Waktu Mulai: ${currentSession.value.start_time}`, 14, infoY + 6);
   doc.text(
     `Waktu Selesai: ${currentSession.value.end_time || "Sedang berjalan"}`,
     14,
-    infoY + 14
+    infoY + 12
   );
-  doc.text(`Status: ${currentSession.value.status}`, 14, infoY + 21);
+  doc.text(`Status: ${currentSession.value.status}`, 14, infoY + 18);
   doc.text(
     `Berat Awal: ${currentSession.value.initial_weight?.toFixed(2)} gram`,
     14,
-    infoY + 28
+    infoY + 24
   );
 
   if (currentSession.value.final_weight) {
     doc.text(
       `Berat Akhir: ${currentSession.value.final_weight.toFixed(2)} gram`,
       14,
-      infoY + 35
+      infoY + 30
     );
   }
   if (currentSession.value.final_moisture) {
     doc.text(
       `Kadar Air Akhir: ${currentSession.value.final_moisture.toFixed(2)}%`,
       14,
-      infoY + 42
+      infoY + 36
     );
   }
 
@@ -659,29 +749,39 @@ const downloadPDF = () => {
     ) / dataPointsCount.value;
 
   doc.setFont("helvetica", "bold");
-  doc.text("Rata-rata:", 14, infoY + 56);
+  doc.text("Rata-rata:", 14, infoY + 48);
   doc.setFont("helvetica", "normal");
   doc.text(
     `Suhu: ${avgTemp.toFixed(1)}°C | Kelembapan: ${avgHumidity.toFixed(1)}%`,
     14,
-    infoY + 63
+    infoY + 54
   );
 
-  const tableData = sessionDataPoints.value.map((data: any, index: number) => [
-    index + 1,
-    data.timestamp,
-    data.temperature.toFixed(1),
-    data.humidity.toFixed(1),
-    data.moisture.toFixed(1),
-    data.weight.toFixed(1),
-    data.status,
-    data.heater,
-    data.fan,
-    data.exhaust,
-  ]);
+  doc.text(`Total Notifikasi: ${totalNotifications.value}`, 14, infoY + 60);
+
+  const tableData = sessionDataPoints.value.map((data: any, index: number) => {
+    const notifications =
+      data.notifications && data.notifications.length > 0
+        ? data.notifications.join("; ")
+        : "-";
+
+    return [
+      index + 1,
+      data.timestamp,
+      data.temperature.toFixed(1),
+      data.humidity.toFixed(1),
+      data.moisture.toFixed(1),
+      data.weight.toFixed(1),
+      data.status,
+      data.heater,
+      data.fan,
+      data.exhaust,
+      notifications,
+    ];
+  });
 
   autoTable(doc, {
-    startY: infoY + 70,
+    startY: infoY + 68,
     head: [
       [
         "No",
@@ -694,6 +794,7 @@ const downloadPDF = () => {
         "Heater",
         "Fan",
         "Exhaust",
+        "Keterangan",
       ],
     ],
     body: tableData,
@@ -712,15 +813,16 @@ const downloadPDF = () => {
     },
     columnStyles: {
       0: { cellWidth: 10 },
-      1: { cellWidth: 35 },
+      1: { cellWidth: 30 },
       2: { cellWidth: 15 },
       3: { cellWidth: 15 },
       4: { cellWidth: 15 },
       5: { cellWidth: 18 },
       6: { cellWidth: 20 },
       7: { cellWidth: 18 },
-      8: { cellWidth: 20 },
+      8: { cellWidth: 18 },
       9: { cellWidth: 20 },
+      10: { cellWidth: "auto" },
     },
   });
 
@@ -731,7 +833,7 @@ const downloadPDF = () => {
     doc.setPage(i);
     doc.text(
       `Halaman ${i} dari ${pageCount}`,
-      105,
+      148,
       doc.internal.pageSize.height - 10,
       { align: "center" }
     );
@@ -752,7 +854,8 @@ const deleteSession = async () => {
   const confirmed = confirm(
     `Apakah Anda yakin ingin menghapus data session ini?\n\n` +
       `Session ID: ${currentSession.value?.session_id}\n` +
-      `Total data: ${dataPointsCount.value} records\n\n` +
+      `Total data: ${dataPointsCount.value} records\n` +
+      `Total notifikasi: ${totalNotifications.value}\n\n` +
       `Data yang dihapus tidak dapat dikembalikan!`
   );
 

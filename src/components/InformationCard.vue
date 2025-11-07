@@ -9,27 +9,6 @@
       <Cpu class="w-5 h-5 text-blue-500" /> Informasi Sistem
     </h2>
 
-    <!-- Connection Status Banner -->
-    <div
-      v-if="!isConnected"
-      class="mb-4 p-3 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg flex items-center gap-2"
-    >
-      <AlertCircle class="w-5 h-5 text-red-600 dark:text-red-400" />
-      <span class="text-sm text-red-600 dark:text-red-400 font-semibold">
-        Sistem tidak terkoneksi - Data mungkin tidak up-to-date
-      </span>
-    </div>
-
-    <div
-      v-else
-      class="mb-4 p-3 bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded-lg flex items-center gap-2"
-    >
-      <CheckCircle class="w-5 h-5 text-green-600 dark:text-green-400" />
-      <span class="text-sm text-green-600 dark:text-green-400 font-semibold">
-        Sistem terkoneksi - Data real-time
-      </span>
-    </div>
-
     <div
       class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 text-sm"
     >
@@ -178,7 +157,7 @@ const isConnected = computed(() => {
   const diffMs = now.getTime() - lastUpdateTime.getTime();
   const diffMinutes = diffMs / 60000;
 
-  return diffMinutes < 1; // Connected if last update less than 1 minute ago
+  return diffMinutes < 1;
 });
 
 const networkStatus = computed(() => {

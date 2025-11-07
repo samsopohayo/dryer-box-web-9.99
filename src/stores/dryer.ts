@@ -10,9 +10,8 @@ import type {
   WeatherData,
   ConfigData,
   ControlData,
-  SessionInfo,
   SessionDataPoint,
-  SystemStatus, // ADDED
+  SystemStatus,
 } from "@/types";
 
 export const useDryerStore = defineStore("dryer", () => {
@@ -27,8 +26,10 @@ export const useDryerStore = defineStore("dryer", () => {
   const controlData = ref<ControlData>({
     manual_heater_enable: false,
     manual_heater_state: false,
-    manual_fan_enable: false,
-    manual_fan_state: false,
+    manual_fan_collector_enable: false,
+    manual_fan_collector_state: false,
+    manual_fan_panel_enable: false,
+    manual_fan_panel_state: false,
     manual_exhaust_enable: false,
     manual_exhaust_state: false,
   });

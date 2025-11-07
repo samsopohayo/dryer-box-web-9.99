@@ -291,6 +291,56 @@ const showNotifications = ref(false);
 const notificationRef = ref<HTMLElement | null>(null);
 const currentDateTime = ref("");
 
+const wasDisconnected = ref(false);
+const showReconnectedAlert = ref(false);
+let reconnectedTimeout: number | null = null;
+
+const isConnected = computed(() => {
+  const lastUpdate = dryerStore.systemStatus.last_update;
+  if (!lastUpdate) return false;
+
+  const parseTimestamp = (ts: string): Date => {
+    const [date, time] = ts.split(" ");
+    const [day, month, year] = date.split("/");
+    const [hours, minutes, seconds] = time.split(":");
+    return new Date(
+      parseInt(year),
+      parseInt(month) - 1,
+      parseInt(day),
+      parseInt(hours),
+      parseInt(minutes),
+      parseInt(seconds)
+    );
+  };
+
+  const lastUpdateTime = parseTimestamp(lastUpdate);
+  const now = new Date();
+  const diffMs = now.getTime() - lastUpdateTime.getTime();
+  const diffMinutes = diffMs / 60000;
+
+  return diffMinutes < 1;
+});
+
+watch(isConnected, (newStatus, oldStatus) => {
+  if (newStatus && !oldStatus && wasDisconnected.value) {
+    showReconnectedAlert.value = true;
+    wasDisconnected.value = false;
+
+    if (reconnectedTimeout !== null) {
+      clearTimeout(reconnectedTimeout);
+    }
+
+    reconnectedTimeout = window.setTimeout(() => {
+      showReconnectedAlert.value = false;
+    }, 10000);
+  }
+
+  if (!newStatus && oldStatus) {
+    wasDisconnected.value = true;
+    showReconnectedAlert.value = false;
+  }
+});
+
 const emit = defineEmits<{
   toggleSidebar: [];
 }>();
@@ -406,6 +456,8 @@ const showAlert = computed(() => {
     errorMsg.trim() !== "";
 
   return (
+    !isConnected.value ||
+    showReconnectedAlert.value ||
     timerStore.isRunning ||
     dryerStore.statusData.door_open ||
     dryerStore.statusData.temp_protection ||
@@ -414,6 +466,8 @@ const showAlert = computed(() => {
 });
 
 const alertClass = computed(() => {
+  if (!isConnected.value) return "bg-red-600 text-white";
+  if (showReconnectedAlert.value) return "bg-green-600 text-white";
   if (dryerStore.statusData.temp_protection) return "bg-red-500 text-white";
   if (dryerStore.statusData.door_open) return "bg-yellow-500 text-white";
 
@@ -431,6 +485,8 @@ const alertClass = computed(() => {
 });
 
 const alertText = computed(() => {
+  if (!isConnected.value) return "SISTEM TIDAK TERKONEKSI";
+  if (showReconnectedAlert.value) return "SISTEM SUDAH TERKONEKSI KEMBALI";
   if (dryerStore.statusData.temp_protection) return "PROTEKSI SUHU AKTIF";
   if (dryerStore.statusData.door_open) return "PINTU TERBUKA";
 
@@ -573,6 +629,8 @@ watch(
 onMounted(() => {
   document.addEventListener("click", handleClickOutside);
 
+  wasDisconnected.value = !isConnected.value;
+
   // Update datetime immediately
   updateDateTime();
 
@@ -586,6 +644,10 @@ onBeforeUnmount(() => {
   // Clear interval
   if (dateTimeInterval !== null) {
     clearInterval(dateTimeInterval);
+  }
+
+  if (reconnectedTimeout !== null) {
+    clearTimeout(reconnectedTimeout);
   }
 });
 </script>

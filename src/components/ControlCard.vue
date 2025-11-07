@@ -30,7 +30,8 @@
 
     <button
       @click="handleToggle"
-      class="w-full py-3 rounded-lg font-semibold transition-all duration-300 transform active:scale-95 relative overflow-hidden group"
+      :disabled="!isConnected"
+      class="w-full py-3 rounded-lg font-semibold transition-all duration-300 transform active:scale-95 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
       :class="buttonClass"
     >
       <span class="relative z-10 flex items-center justify-center space-x-2">
@@ -44,6 +45,29 @@
         class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"
       ></div>
     </button>
+
+    <!-- Connection Warning -->
+    <div
+      v-if="!isConnected"
+      class="mt-3 p-2 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg flex items-center gap-2"
+    >
+      <svg
+        class="w-4 h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+        />
+      </svg>
+      <span class="text-xs text-yellow-700 dark:text-yellow-300">
+        Sistem tidak terkoneksi
+      </span>
+    </div>
   </div>
 </template>
 
@@ -53,7 +77,7 @@ import { useDryerStore } from "@/stores/dryer";
 
 const props = defineProps<{
   title: string;
-  device: "heater" | "fan" | "exhaust";
+  device: "heater" | "fan" | "fan_collector" | "fan_panel" | "exhaust";
 }>();
 
 const emit = defineEmits<{
@@ -62,6 +86,33 @@ const emit = defineEmits<{
 
 const dryerStore = useDryerStore();
 
+// Check if system is connected (last update within 1 minute)
+const isConnected = computed(() => {
+  const lastUpdate = dryerStore.systemStatus.last_update;
+  if (!lastUpdate) return false;
+
+  const parseTimestamp = (ts: string): Date => {
+    const [date, time] = ts.split(" ");
+    const [day, month, year] = date.split("/");
+    const [hours, minutes, seconds] = time.split(":");
+    return new Date(
+      parseInt(year),
+      parseInt(month) - 1,
+      parseInt(day),
+      parseInt(hours),
+      parseInt(minutes),
+      parseInt(seconds)
+    );
+  };
+
+  const lastUpdateTime = parseTimestamp(lastUpdate);
+  const now = new Date();
+  const diffMs = now.getTime() - lastUpdateTime.getTime();
+  const diffMinutes = diffMs / 60000;
+
+  return diffMinutes < 1;
+});
+
 // Get device state from store based on device prop
 const isOn = computed(() => {
   switch (props.device) {
@@ -69,6 +120,10 @@ const isOn = computed(() => {
       return dryerStore.controlData.manual_heater_state;
     case "fan":
       return dryerStore.controlData.manual_fan_state;
+    case "fan_collector":
+      return dryerStore.controlData.manual_fan_collector_state || false;
+    case "fan_panel":
+      return dryerStore.controlData.manual_fan_panel_state || false;
     case "exhaust":
       return dryerStore.controlData.manual_exhaust_state;
     default:
@@ -77,28 +132,40 @@ const isOn = computed(() => {
 });
 
 const statusText = computed(() => {
+  if (!isConnected.value) return "Offline";
   return isOn.value ? "Hidup" : "Mati";
 });
 
 const statusClass = computed(() => {
+  if (!isConnected.value) return "text-gray-500 dark:text-gray-400";
   return isOn.value
     ? "text-green-600 dark:text-green-400 font-semibold"
     : "text-gray-600 dark:text-gray-400";
 });
 
 const buttonClass = computed(() => {
+  if (!isConnected.value) {
+    return "bg-gray-400 text-white cursor-not-allowed";
+  }
+
   return isOn.value
     ? "bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-500/50 dark:shadow-red-900/50"
     : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 dark:shadow-blue-900/50";
 });
 
 const buttonText = computed(() => {
+  if (!isConnected.value) return "Tidak Tersedia";
   return isOn.value ? "Matikan" : "Hidupkan";
 });
 
 // Icon background with gradient
 const iconBackgroundClass = computed(() => {
   const titleLower = props.title.toLowerCase();
+
+  if (!isConnected.value) {
+    return "bg-gradient-to-br from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-700";
+  }
+
   if (titleLower.includes("heater"))
     return isOn.value
       ? "bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900 dark:to-red-800"
@@ -117,6 +184,11 @@ const iconBackgroundClass = computed(() => {
 // Icon color
 const iconColorClass = computed(() => {
   const titleLower = props.title.toLowerCase();
+
+  if (!isConnected.value) {
+    return "text-gray-500 dark:text-gray-400";
+  }
+
   if (titleLower.includes("heater"))
     return isOn.value
       ? "text-red-600 dark:text-red-300"
@@ -136,7 +208,7 @@ const iconColorClass = computed(() => {
 const deviceIcon = computed(() => {
   const titleLower = props.title.toLowerCase();
 
-  // Heater icon (electric heater coil)
+  // Heater icon
   if (titleLower.includes("heater")) {
     return h(
       "svg",
@@ -153,14 +225,15 @@ const deviceIcon = computed(() => {
     );
   }
 
-  // Fan icon (propeller/fan blades)
+  // Fan icon
   if (titleLower.includes("fan")) {
     return h(
       "svg",
       {
         fill: "currentColor",
         viewBox: "0 0 24 24",
-        class: isOn.value ? "w-6 h-6 animate-spin" : "w-6 h-6",
+        class:
+          isOn.value && isConnected.value ? "w-6 h-6 animate-spin" : "w-6 h-6",
       },
       [
         h("path", {
@@ -170,7 +243,7 @@ const deviceIcon = computed(() => {
     );
   }
 
-  // Exhaust icon (exhaust fan with vent)
+  // Exhaust icon
   if (titleLower.includes("exhaust")) {
     return h(
       "svg",
@@ -207,7 +280,7 @@ const deviceIcon = computed(() => {
   );
 });
 
-// Button icon (power symbol)
+// Button icon
 const buttonIcon = computed(() => {
   if (isOn.value) {
     // Power off icon
@@ -251,6 +324,7 @@ const buttonIcon = computed(() => {
 });
 
 const handleToggle = () => {
+  if (!isConnected.value) return;
   emit("toggle");
 };
 </script>

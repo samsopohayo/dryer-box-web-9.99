@@ -15,13 +15,24 @@
       <Header @toggleSidebar="toggleSidebar" />
       <main class="p-4 sm:p-6 lg:p-8">
         <div class="max-w-7xl mx-auto space-y-6 sm:space-y-8">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          <div
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
+          >
             <ControlCard
               title="Heater"
               device="heater"
               @toggle="toggleHeater"
             />
-            <ControlCard title="Fan" device="fan" @toggle="toggleFan" />
+            <ControlCard
+              title="Fan Collector"
+              device="fan_collector"
+              @toggle="toggleFanCollector"
+            />
+            <ControlCard
+              title="Fan Panel"
+              device="fan_panel"
+              @toggle="toggleFanPanel"
+            />
             <ControlCard
               title="Exhaust"
               device="exhaust"
@@ -67,10 +78,16 @@ const toggleHeater = async () => {
   await dryerStore.updateControl("manual_heater_state", newState);
 };
 
-const toggleFan = async () => {
-  const newState = !dryerStore.controlData.manual_fan_state;
-  await dryerStore.updateControl("manual_fan_enable", true);
-  await dryerStore.updateControl("manual_fan_state", newState);
+const toggleFanCollector = async () => {
+  const newState = !dryerStore.controlData.manual_fan_collector_state;
+  await dryerStore.updateControl("manual_fan_collector_enable", true);
+  await dryerStore.updateControl("manual_fan_collector_state", newState);
+};
+
+const toggleFanPanel = async () => {
+  const newState = !dryerStore.controlData.manual_fan_panel_state;
+  await dryerStore.updateControl("manual_fan_panel_enable", true);
+  await dryerStore.updateControl("manual_fan_panel_state", newState);
 };
 
 const toggleExhaust = async () => {
