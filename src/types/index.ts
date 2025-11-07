@@ -12,8 +12,10 @@ export interface ConfigData {
 export interface ControlData {
   manual_heater_enable: boolean;
   manual_heater_state: boolean;
-  manual_fan_enable: boolean;
-  manual_fan_state: boolean;
+  manual_fan_collector_enable: boolean;
+  manual_fan_collector_state: boolean;
+  manual_fan_panel_enable: boolean;
+  manual_fan_panel_state: boolean;
   manual_exhaust_enable: boolean;
   manual_exhaust_state: boolean;
 }
@@ -34,7 +36,7 @@ export interface StatusData {
   door_open: boolean;
   temp_protection: boolean;
   humidity_control: boolean;
-  temperature_control: boolean; // Added missing field
+  temperature_control: boolean;
 }
 
 export interface WeatherData {
@@ -92,4 +94,5 @@ export interface SessionDataPoint {
   exhaust: string;
   humidity_control?: boolean;
   temperature_control?: boolean;
+  notifications?: string[];
 }
