@@ -23,7 +23,7 @@
 #define TARE_SWITCH 32      // TARE button
 #define START_SWITCH 33     // START button
 #define INFO_SWITCH 35      // INFO button 
-#define RESTART_SWITCH 27   // RESTART button (NEW - Using available pin)
+#define RESTART_SWITCH 27   // RESTART button
 #define DOOR_SWITCH 23      // Door switch
 #define FANHEATPAN1 26      // Kipas heater panel 1
 #define FANHEATCOL2 25      // Kipas heater colector 2 (controlled by weather)
@@ -31,7 +31,7 @@
 #define MOSFET2_PIN 15      // Steam pusher (active on RUNNING & OVERHEAT)
 #define RELAY1_PIN 17       // Heater Hangat
 #define RELAY2_PIN 5        // Heater Panas
-#define SERVO_PIN 18        // Exhaust valve
+#define SERVO_PIN 19        // Exhaust valve
 #define SDA_PIN 21          // I2C LCD SDA
 #define SCL_PIN 22          // I2C LCD SCL
 
@@ -116,7 +116,7 @@ String sessionId = "";
 bool stabilizing = false;               
 bool systemRunning = false;             
 
-// Control Mode Variables (NEW)
+// Control Mode Variables
 bool isAutoMode = true;                 // true = AUTO, false = MANUAL
 bool manualModeActive = false;          // Manual mode activated by user
 
@@ -139,9 +139,11 @@ float kelembapanSensor = 0;
 float lastWeight = 0;                   
 float suhuSensor = 0;                   
 
-// Heater Fan Fuzzy Controller
+// PWM Configuration
 const int pwmFreq = 20000;              
-const int pwmResolution = 8;            
+const int pwmResolution = 8;
+const int FAN_PANEL_CHANNEL = 0;        // PWM Channel untuk Fan Panel
+const int FAN_COLLECTOR_CHANNEL = 1;    // PWM Channel untuk Fan Collector
 
 // Manual Control Variables
 bool manualExhaustControl = false;      
@@ -153,7 +155,7 @@ bool manualFanPanState = false;
 bool manualHeaterControl = false;       
 bool manualHeaterState = false;         
 
-// Timer Control Variables (NEW)
+// Timer Control Variables
 bool timerEnabled = false;              
 unsigned long timerDuration = 0;        
 unsigned long timerRemaining = 0;       
@@ -221,7 +223,7 @@ struct ButtonState {
 ButtonState infoButton = {false, false, 0, 0, 0, false};
 ButtonState startButton = {false, false, 0, 0, 0, false};
 ButtonState tareButton = {false, false, 0, 0, 0, false};
-ButtonState restartButton = {false, false, 0, 0, 0, false}; // NEW
+ButtonState restartButton = {false, false, 0, 0, 0, false};
 
 //=============================================================================== Declarations Function ===============================================================================
 // Proses Utama & Logika Sistem
@@ -238,6 +240,7 @@ void syncOfflineData();
 // Kontrol Perangkat
 void controlExhaust(float output);
 void controlExhaustHumidity(float humidity);
+void controlExhaustTemperature(float temperature);
 void controlExhaustManual(bool state);
 void controlFan(float output);
 void controlFanColManual(bool state);
@@ -266,6 +269,8 @@ void displayInfo();
 void handleInfoDisplayTimeout();
 void updateDefaultDisplay();
 void updateDoorStatus();
+void updateDisplay();
+void displayBootMessage();
 
 // Input Tombol
 void handleButtonInputs();
@@ -274,20 +279,50 @@ void handleStartButton();
 void handleInfoButton();
 void handleRestartButton();
 
-// Timer Functions (NEW)
+// Timer Functions
 void updateTimer();
 void syncTimerToFirebase();
 void checkTimerFromFirebase();
 
-// Control Mode Functions (NEW)
+// Control Mode Functions
 void checkControlMode();
 void switchToAutoMode();
 void switchToManualMode();
+void checkManualControls();
 
 // Penanganan Error
 void addError(String code, String message);
 void clearError(String code);
 void clearAllErrors();
+
+// Utility
+String getTimestamp();
+String generateSessionId();
+
+// Connection & Firebase
+void connectWiFi();
+void setupFirebase();
+void sendSystemInfo();
+void sendSessionStart();
+void sendSessionEnd();
+void sendSystemStatus(String status);
+void sendToFirebase();
+void sendOrBufferData();
+void loadConfigFromFirebase();
+void listenConfigUpdates();
+
+// Weather
+void fetchWeatherData();
+
+// Fuzzy Logic
+void setupFuzzyLogic();
+void setupFuzzyRules();
+
+// Testing
+void testAllOutputs();
+void testButtonPins();
+void testDHTSensor();
+void testLoadCell();
 
 //=============================================================================== Utility ===============================================================================
 String getTimestamp() {
@@ -313,9 +348,9 @@ String generateSessionId() {
 //=============================================================================== Setup Function ===============================================================================
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n🚀 SISTEM PENGERING ESP32 v4.0 (REFACTORED)");
+  Serial.println("\n🚀 SISTEM PENGERING ESP32 v4.0 (SERVO FIXED)");
   Serial.println("===================================");
-  Serial.println("Initializing enhanced system with Auto/Manual mode");
+  Serial.println("Initializing enhanced system with PWM channel isolation");
   
   // Initialize SPIFFS first
   if (!SPIFFS.begin(true)) {
@@ -335,18 +370,27 @@ void setup() {
     systemErrors[i].active = false;
   }
   
-  // Initialize pins
-  ledcAttach(FANHEATPAN1, pwmFreq, pwmResolution);    
-  ledcAttach(FANHEATCOL2, pwmFreq, pwmResolution);   
+  // Initialize PWM channels for fans with explicit channel assignment
+  ledcSetup(FAN_PANEL_CHANNEL, pwmFreq, pwmResolution);
+  ledcAttachPin(FANHEATPAN1, FAN_PANEL_CHANNEL);
+  
+  ledcSetup(FAN_COLLECTOR_CHANNEL, pwmFreq, pwmResolution);
+  ledcAttachPin(FANHEATCOL2, FAN_COLLECTOR_CHANNEL);
+  
+  Serial.println("✅ PWM channels configured:");
+  Serial.println("   Fan Panel: Channel " + String(FAN_PANEL_CHANNEL));
+  Serial.println("   Fan Collector: Channel " + String(FAN_COLLECTOR_CHANNEL));
+  
+  // Initialize digital pins
   pinMode(TARE_SWITCH, INPUT_PULLUP);                 
   pinMode(START_SWITCH, INPUT_PULLUP);                
   pinMode(DOOR_SWITCH, INPUT_PULLUP);                 
   pinMode(INFO_SWITCH, INPUT_PULLUP);                 
-  pinMode(RESTART_SWITCH, INPUT_PULLUP);              // NEW - Restart button
+  pinMode(RESTART_SWITCH, INPUT_PULLUP);             
   pinMode(RELAY1_PIN, OUTPUT);                        
   pinMode(RELAY2_PIN, OUTPUT);                        
   pinMode(MOSFET1_PIN, OUTPUT);                       
-  pinMode(MOSFET2_PIN, OUTPUT);                       // Steam pusher
+  pinMode(MOSFET2_PIN, OUTPUT);                    
   Serial.println("✅ GPIO pins configured");
   
   // Test button pins
@@ -365,10 +409,15 @@ void setup() {
   scale.begin(DOUT_PIN, SCK_PIN);
   testLoadCell();
   
-  // Initialize servo
-  exhaustServo.attach(SERVO_PIN);
+  // Initialize servo with explicit PWM configuration
+  ESP32PWM::allocateTimer(2);  // Use timer 2 for servo
+  exhaustServo.setPeriodHertz(50);  // Standard servo frequency
+  exhaustServo.attach(SERVO_PIN, 500, 2400);  // Attach with pulse width range
   exhaustServo.write(0);
-  Serial.println("✅ Servo exhaust initialized - Position: CLOSED");
+  delay(500);  // Give servo time to reach position
+  Serial.println("✅ Servo exhaust initialized");
+  Serial.println("   Position: CLOSED (0°)");
+  Serial.println("   Using Timer 2 for PWM");
   
   // WiFi Connection
   connectWiFi();
@@ -488,7 +537,7 @@ void handleButtonInputs() {
   handleTareButton();
   handleStartButton();
   handleInfoButton();
-  handleRestartButton(); // NEW
+  handleRestartButton();
 }
 
 void handleTareButton() {
@@ -553,7 +602,6 @@ void handleInfoButton() {
   infoButton.lastPressed = currentReading;
 }
 
-// NEW - Restart Button Handler
 void handleRestartButton() {
   bool currentReading = (digitalRead(RESTART_SWITCH) == LOW);
   unsigned long currentTime = millis();
@@ -648,15 +696,13 @@ void restartSystem() {
 
 //=========================================================================== CONTROL MODE MANAGEMENT ===========================================================================
 
-// Check control mode from Firebase
 void checkControlMode() {
   static unsigned long lastModeCheck = 0;
-  if (millis() - lastModeCheck < 2000) return; // Check every 2 seconds
+  if (millis() - lastModeCheck < 2000) return;
   lastModeCheck = millis();
 
   if (WiFi.status() != WL_CONNECTED) return;
   
-  // Read control mode from Firebase
   if (Firebase.getBool(firebaseData, "/control/auto_mode")) {
     bool autoMode = firebaseData.boolData();
     
@@ -672,7 +718,6 @@ void checkControlMode() {
   }
   delay(50);
   
-  // If in manual mode, check manual controls
   if (!isAutoMode) {
     checkManualControls();
   }
@@ -684,20 +729,17 @@ void switchToAutoMode() {
   isAutoMode = true;
   manualModeActive = false;
   
-  // Disable all manual controls
   manualHeaterControl = false;
   manualFanColControl = false;
   manualFanPanControl = false;
   manualExhaustControl = false;
   
-  // Stop timer if running
   if (timerEnabled) {
     timerEnabled = false;
     timerPaused = false;
     syncTimerToFirebase();
   }
   
-  // Update Firebase
   Firebase.setBool(firebaseData, "/control/auto_mode", true);
   Firebase.setBool(firebaseData, "/control/manual_heater_enable", false);
   Firebase.setBool(firebaseData, "/control/manual_fan_panel_enable", false);
@@ -720,7 +762,6 @@ void switchToManualMode() {
   isAutoMode = false;
   manualModeActive = true;
   
-  // Update Firebase
   Firebase.setBool(firebaseData, "/control/auto_mode", false);
   
   Serial.println("✅ Switched to MANUAL mode - Manual controls active");
@@ -738,26 +779,22 @@ void switchToManualMode() {
 void updateTimer() {
   unsigned long currentTime = millis();
   
-  // Update timer every second
   if (currentTime - lastTimerUpdate >= 1000) {
     lastTimerUpdate = currentTime;
     
     if (timerRemaining > 0) {
       timerRemaining--;
       
-      // Sync to Firebase every 5 seconds
       if (timerRemaining % 5 == 0) {
         syncTimerToFirebase();
       }
       
-      // Check if timer completed
       if (timerRemaining == 0) {
         Serial.println("⏰ Timer completed!");
         timerEnabled = false;
         timerPaused = false;
         syncTimerToFirebase();
         
-        // Show notification
         lcd.clear();
         lcd.setCursor(0, 0);
         lcd.print("TIMER COMPLETE!");
@@ -785,12 +822,10 @@ void syncTimerToFirebase() {
 void checkTimerFromFirebase() {
   if (WiFi.status() != WL_CONNECTED) return;
   
-  // Read timer state from Firebase
   if (Firebase.getBool(firebaseData, "/timer/enabled")) {
     bool newEnabled = firebaseData.boolData();
     
     if (newEnabled && !timerEnabled) {
-      // Timer started from web
       if (Firebase.getInt(firebaseData, "/timer/remaining")) {
         timerRemaining = firebaseData.intData();
         timerDuration = timerRemaining;
@@ -801,7 +836,6 @@ void checkTimerFromFirebase() {
         Serial.println("⏱️ Timer started from web: " + String(timerRemaining) + "s");
       }
     } else if (!newEnabled && timerEnabled) {
-      // Timer stopped from web
       timerEnabled = false;
       timerPaused = false;
       timerRemaining = 0;
@@ -935,7 +969,6 @@ void runDryingProcess() {
   
   checkProcessCompletion();
   
-  // Apply controls based on mode
   if (processStatus == "Berjalan" && !tempProtectionActive && !doorOpen) {
     applyControls();
   } else {
@@ -968,7 +1001,6 @@ void checkProcessCompletion() {
     humidityControlActive = false;
     temperatureControlActive = false;
     
-    // Stop timer if running
     if (timerEnabled) {
       timerEnabled = false;
       timerPaused = false;
@@ -991,7 +1023,6 @@ void checkProcessCompletion() {
 
 void readSensors() {
   
-  // Read DHT22 - Temperature dan Humidity
   suhuSensor = dht.readTemperature();
   kelembapanSensor = dht.readHumidity(); 
   
@@ -1027,7 +1058,6 @@ void readSensors() {
     }
   }
   
-  // Read HX711
   if (!scale.is_ready()) {
     addError("SCALE_NOT_READY", "Load cell not ready");
     beratSekarang = beratAwal;
@@ -1177,16 +1207,12 @@ void controlExhaustTemperature(float temperature) {
 
 void applyControls() {
   if (!isAutoMode) {
-    // MANUAL MODE
     if (timerEnabled && !timerPaused) {
-      // Manual with Timer
       applyTimerControls();
     } else {
-      // Manual with Button Toggle
       applyManualControls();
     }
   } else {
-    // AUTO MODE - Fuzzy Logic
     applyFuzzyLogicControls();
   }
 }
@@ -1197,7 +1223,6 @@ void applyTimerControls() {
   Serial.println("\n⏱️ === TIMER CONTROL MODE ===");
   Serial.println("   Timer remaining: " + String(timerRemaining) + "s");
   
-  // In timer mode, all actuators are ON
   if (!manualHeaterControl) {
     digitalWrite(RELAY1_PIN, RELAY_ON);
     digitalWrite(RELAY2_PIN, RELAY_ON);
@@ -1205,10 +1230,9 @@ void applyTimerControls() {
   }
   
   if (!manualFanPanControl && !manualFanColControl) {
-    ledcWrite(FANHEATPAN1, 255);
+    ledcWrite(FAN_PANEL_CHANNEL, 255);
     kipasStatus = "Timer-ON";
     
-    // Check weather for collector fan
     bool kondisiCerah = (weatherMain == "cerah" || weatherMain == "berawan");
     time_t now = time(nullptr);
     struct tm* ptm = localtime(&now);
@@ -1216,10 +1240,10 @@ void applyTimerControls() {
     bool jamKolektor = (jamSekarang >= 6 && jamSekarang < 17);
     
     if (kondisiCerah && jamKolektor) {
-      ledcWrite(FANHEATCOL2, 255);
+      ledcWrite(FAN_COLLECTOR_CHANNEL, 255);
       kipasStatus = "Timer-ON (Pan & Col)";
     } else {
-      ledcWrite(FANHEATCOL2, 0);
+      ledcWrite(FAN_COLLECTOR_CHANNEL, 0);
       kipasStatus = "Timer-ON (Pan only)";
     }
   }
@@ -1230,7 +1254,6 @@ void applyTimerControls() {
     exhaustStatus = "Timer-ON";
   }
   
-  // Steam pusher active during timer
   controlSteamPusher(true);
   
   Serial.println("   All actuators running in timer mode");
@@ -1259,7 +1282,6 @@ void applyFuzzyLogicControls() {
   controlHeater(outputPemanas);
   controlFan(outputKipas);
   
-  // Steam pusher active when system running and temp normal
   bool steamActive = systemRunning && !tempProtectionActive;
   controlSteamPusher(steamActive);
 }
@@ -1285,9 +1307,8 @@ void controlFan(float output) {
   int duty = constrain((int)round(output), 0, 255);
   int persen = map(duty, 0, 255, 0, 100);
   
-  ledcWrite(FANHEATPAN1, duty);
+  ledcWrite(FAN_PANEL_CHANNEL, duty);
   
-  // Weather-based collector fan control
   bool kondisiCerah = (weatherMain == "cerah" || weatherMain == "berawan");
   time_t now = time(nullptr);
   struct tm* ptm = localtime(&now);
@@ -1295,15 +1316,15 @@ void controlFan(float output) {
   bool jamKolektor = (jamSekarang >= 6 && jamSekarang < 17);
   
   if (duty == 0) {
-    ledcWrite(FANHEATCOL2, 0);
+    ledcWrite(FAN_COLLECTOR_CHANNEL, 0);
     kipasStatus = "Mati";
     
   } else if (kondisiCerah && jamKolektor) {
-    ledcWrite(FANHEATCOL2, duty);
+    ledcWrite(FAN_COLLECTOR_CHANNEL, duty);
     kipasStatus = "Pan & Col aktif (pwr: " + String(persen) + "%, cuaca: " + weatherMain + ")";
     
   } else {
-    ledcWrite(FANHEATCOL2, 0);
+    ledcWrite(FAN_COLLECTOR_CHANNEL, 0);
     
     if (kondisiCerah) {
       kipasStatus = "Hanya Pan (pwr: " + String(persen) + "%, malam hari)";
@@ -1340,7 +1361,6 @@ void controlExhaust(float output) {
   Serial.println("🌬  Exhaust: " + exhaustStatus);
 }
 
-// NEW - Steam Pusher Control
 void controlSteamPusher(bool state) {
   if (state && systemRunning && !tempProtectionActive) {
     digitalWrite(MOSFET2_PIN, HIGH);
@@ -1405,7 +1425,13 @@ void checkManualControls() {
 }
 
 void applyManualControls() {
-  Serial.println("\n⚙  === MANUAL CONTROL MODE ===");
+  Serial.println("\n🔧 === MANUAL CONTROL MODE ===");
+  
+  if (!systemRunning) {
+    Serial.println("   System not running - manual controls disabled");
+    turnOffAllOutputs();
+    return;
+  }
   
   if (manualHeaterControl) {
     controlHeaterManual(manualHeaterState);
@@ -1427,7 +1453,6 @@ void applyManualControls() {
     Serial.println("   Manual exhaust override");
   }
   
-  // Steam pusher in manual mode
   controlSteamPusher(systemRunning && !tempProtectionActive);
 }
 
@@ -1446,10 +1471,10 @@ void controlHeaterManual(bool state) {
 
 void controlFanColManual(bool state) {
   if (state) {
-    ledcWrite(FANHEATCOL2, 255);
+    ledcWrite(FAN_COLLECTOR_CHANNEL, 255);
     kipasStatus = "Manual COL ON";
   } else {
-    ledcWrite(FANHEATCOL2, 0);
+    ledcWrite(FAN_COLLECTOR_CHANNEL, 0);
     kipasStatus = "Manual COL OFF";
   }
   Serial.println("💨 Fan Collector Manual: " + kipasStatus);
@@ -1457,10 +1482,10 @@ void controlFanColManual(bool state) {
 
 void controlFanPanManual(bool state) {
   if (state) {
-    ledcWrite(FANHEATPAN1, 255);
+    ledcWrite(FAN_PANEL_CHANNEL, 255);
     kipasStatus = "Manual PAN ON";
   } else {
-    ledcWrite(FANHEATPAN1, 0);
+    ledcWrite(FAN_PANEL_CHANNEL, 0);
     kipasStatus = "Manual PAN OFF";
   }
   Serial.println("💨 Fan Panel Manual: " + kipasStatus);
@@ -1486,8 +1511,8 @@ void turnOffAllOutputs() {
   digitalWrite(RELAY2_PIN, RELAY_OFF);
   digitalWrite(MOSFET1_PIN, LOW);
   digitalWrite(MOSFET2_PIN, LOW);
-  ledcWrite(FANHEATPAN1, 0);
-  ledcWrite(FANHEATCOL2, 0);
+  ledcWrite(FAN_PANEL_CHANNEL, 0);
+  ledcWrite(FAN_COLLECTOR_CHANNEL, 0);
   exhaustServo.write(0);
   
   if (!tempProtectionActive) {
@@ -1532,13 +1557,12 @@ void checkTemperatureProtection() {
       addError("TEMP_PROTECTION", "Temperature too high: " + String(suhuSensor, 1) + "°C");
       Serial.println("🚨 TEMPERATURE PROTECTION ACTIVATED!");
       
-      // Emergency cooling
       digitalWrite(RELAY1_PIN, RELAY_OFF);
       digitalWrite(RELAY2_PIN, RELAY_OFF);
       digitalWrite(MOSFET1_PIN, HIGH);
-      digitalWrite(MOSFET2_PIN, HIGH); // Steam pusher for cooling
-      ledcWrite(FANHEATPAN1, 255);
-      ledcWrite(FANHEATCOL2, 255);
+      digitalWrite(MOSFET2_PIN, HIGH); 
+      ledcWrite(FAN_PANEL_CHANNEL, 255);
+      ledcWrite(FAN_COLLECTOR_CHANNEL, 255);
       exhaustServo.write(90);
       
       pemanasStatus = "PROTECTION";
@@ -1728,7 +1752,7 @@ void sendSystemStatus(String status) {
   if (WiFi.status() == WL_CONNECTED) {
     Firebase.setString(firebaseData, "/system/status", status);
     Firebase.setString(firebaseData, "/system/last_boot", getTimestamp());
-    Firebase.setString(firebaseData, "/system/version", "v4.0_refactored");
+    Firebase.setString(firebaseData, "/system/version", "v4.0_servo_fixed");
   }
 }
 
@@ -1765,7 +1789,7 @@ void sendToFirebase() {
   delay(50);
   
   if (!Firebase.setFloat(firebaseData, "/sensor/kadarAir", kadarAir)) {
-    Serial.println("❌ Kelembaban failed: " + firebaseData.errorReason());
+    Serial.println("❌ KadarAir failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
@@ -1864,7 +1888,7 @@ void sendToFirebase() {
   }
   delay(50);
   
-  // Send system info setiap 30 detik
+  // Send system info every 30 seconds
   static unsigned long lastSystemInfoSend = 0;
   if (millis() - lastSystemInfoSend > 30000) {
     sendSystemInfo();
@@ -2194,7 +2218,7 @@ void displayBootMessage() {
   lcd.setCursor(0, 0);
   lcd.print("SISTEM PENGERING");
   lcd.setCursor(0, 1);
-  lcd.print("ESP32 v4.0");
+  lcd.print("ESP32 v4.0 FIXED");
   delay(2000);
   
   lcd.clear();
@@ -2260,11 +2284,9 @@ void updateDefaultDisplay() {
       } else if (doorOpen) {
         statusLine = "DOOR OPEN-PAUSED";
       } else {
-        // Show control mode
         statusLine = (isAutoMode ? "AUTO: " : "MAN: ") + processStatus;
       }
       
-      // Pad or truncate to 16 characters
       while (statusLine.length() < 16) statusLine += " ";
       if (statusLine.length() > 16) statusLine = statusLine.substring(0, 16);
       
@@ -2411,14 +2433,14 @@ void testAllOutputs() {
   digitalWrite(RELAY2_PIN, RELAY_OFF);
   
   Serial.println("   Testing Fan Motor 1 (Heater Panel)...");
-  ledcWrite(FANHEATPAN1, 255);
+  ledcWrite(FAN_PANEL_CHANNEL, 255);
   delay(1000);
-  ledcWrite(FANHEATPAN1, 0);
+  ledcWrite(FAN_PANEL_CHANNEL, 0);
 
   Serial.println("   Testing Fan Motor 2 (Heater Collector)...");
-  ledcWrite(FANHEATCOL2, 255);
+  ledcWrite(FAN_COLLECTOR_CHANNEL, 255);
   delay(1000);
-  ledcWrite(FANHEATCOL2, 0);
+  ledcWrite(FAN_COLLECTOR_CHANNEL, 0);
   
   Serial.println("   Testing MOSFET 1 (Exhaust Fan)...");
   digitalWrite(MOSFET1_PIN, HIGH);
@@ -2431,11 +2453,15 @@ void testAllOutputs() {
   digitalWrite(MOSFET2_PIN, LOW);
   
   Serial.println("   Testing Servo (Exhaust Valve)...");
+  Serial.println("   - Moving to 45°...");
   exhaustServo.write(45);
-  delay(1000);
+  delay(1500);
+  Serial.println("   - Moving to 90°...");
   exhaustServo.write(90);
-  delay(1000);
+  delay(1500);
+  Serial.println("   - Moving to 0° (CLOSED)...");
   exhaustServo.write(0);
+  delay(1000);
   
   Serial.println("✅ All output tests completed");
 }
