@@ -1,4 +1,4 @@
-// FILE: src/types/index.ts (UPDATED - Added auto_mode)
+// FILE: src/types/index.ts (FIXED - Removed manual_fan_state typo)
 
 export interface ConfigData {
   targetMoisture: number;
@@ -9,7 +9,7 @@ export interface ConfigData {
 }
 
 export interface ControlData {
-  auto_mode: boolean; // NEW - Control mode (true = AUTO, false = MANUAL)
+  auto_mode: boolean;
   manual_heater_enable: boolean;
   manual_heater_state: boolean;
   manual_fan_collector_enable: boolean;
@@ -18,6 +18,7 @@ export interface ControlData {
   manual_fan_panel_state: boolean;
   manual_exhaust_enable: boolean;
   manual_exhaust_state: boolean;
+  // NOTE: NO manual_fan_state - only fan_panel and fan_collector
 }
 
 export interface SensorData {
@@ -79,7 +80,7 @@ export interface SessionInfo {
   initial_temperature?: number;
   temperature_target_min?: number;
   temperature_target_max?: number;
-  control_mode?: string; // NEW - "AUTO" or "MANUAL"
+  control_mode?: string;
   status: string;
 }
 
@@ -95,6 +96,6 @@ export interface SessionDataPoint {
   exhaust: string;
   humidity_control?: boolean;
   temperature_control?: boolean;
-  control_mode?: string; // NEW - "AUTO" or "MANUAL"
+  control_mode?: string;
   notifications?: string[];
 }

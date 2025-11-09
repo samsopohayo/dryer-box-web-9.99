@@ -1764,7 +1764,7 @@ void sendToFirebase() {
   }
   delay(50);
   
-  if (!Firebase.setFloat(firebaseData, "/sensor/kelembaban", kadarAir)) {
+  if (!Firebase.setFloat(firebaseData, "/sensor/kadarAir", kadarAir)) {
     Serial.println("❌ Kelembaban failed: " + firebaseData.errorReason());
     allSuccess = false;
   }

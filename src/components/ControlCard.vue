@@ -68,6 +68,13 @@
         Sistem tidak terkoneksi
       </span>
     </div>
+
+    <!-- Device Info -->
+    <div class="mt-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+      <p class="text-xs text-gray-600 dark:text-gray-400">
+        {{ deviceInfo }}
+      </p>
+    </div>
   </div>
 </template>
 
@@ -77,7 +84,7 @@ import { useDryerStore } from "@/stores/dryer";
 
 const props = defineProps<{
   title: string;
-  device: "heater" | "fan" | "fan_collector" | "fan_panel" | "exhaust";
+  device: "heater" | "fan_collector" | "fan_panel" | "exhaust";
 }>();
 
 const emit = defineEmits<{
@@ -118,8 +125,6 @@ const isOn = computed(() => {
   switch (props.device) {
     case "heater":
       return dryerStore.controlData.manual_heater_state;
-    case "fan":
-      return dryerStore.controlData.manual_fan_state;
     case "fan_collector":
       return dryerStore.controlData.manual_fan_collector_state || false;
     case "fan_panel":
