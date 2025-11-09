@@ -1,5 +1,4 @@
-// FILE: src/stores/dryer.ts (UPDATED - Added SystemStatus type)
-// ============================================
+// FILE: src/stores/dryer.ts (UPDATED - Added auto_mode support)
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { database } from "@/firebase/config";
@@ -24,6 +23,7 @@ export const useDryerStore = defineStore("dryer", () => {
   });
 
   const controlData = ref<ControlData>({
+    auto_mode: true, // Default to AUTO mode
     manual_heater_enable: false,
     manual_heater_state: false,
     manual_fan_collector_enable: false,
@@ -59,7 +59,6 @@ export const useDryerStore = defineStore("dryer", () => {
     temp: 0,
   });
 
-  // UPDATED: Use SystemStatus type instead of any
   const systemStatus = ref<SystemStatus>({
     status: "ready",
     last_update: "",
@@ -95,7 +94,19 @@ export const useDryerStore = defineStore("dryer", () => {
 
     onValue(dbRef(database, "control"), (snapshot) => {
       if (snapshot.exists()) {
-        controlData.value = snapshot.val();
+        const data = snapshot.val();
+        controlData.value = {
+          auto_mode: data.auto_mode !== false, // Default true if not set
+          manual_heater_enable: data.manual_heater_enable || false,
+          manual_heater_state: data.manual_heater_state || false,
+          manual_fan_collector_enable:
+            data.manual_fan_collector_enable || false,
+          manual_fan_collector_state: data.manual_fan_collector_state || false,
+          manual_fan_panel_enable: data.manual_fan_panel_enable || false,
+          manual_fan_panel_state: data.manual_fan_panel_state || false,
+          manual_exhaust_enable: data.manual_exhaust_enable || false,
+          manual_exhaust_state: data.manual_exhaust_state || false,
+        };
       }
     });
 

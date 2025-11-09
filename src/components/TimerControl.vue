@@ -1,12 +1,33 @@
-// FILE: src/components/TimerControl.vue (UPDATED - With Pause/Resume Button) //
-============================================
 <template>
   <div
     class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-colors"
   >
+    <!-- Connection Status Warning -->
+    <div
+      v-if="!isConnected"
+      class="mb-4 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 flex items-center space-x-2"
+    >
+      <svg
+        class="w-5 h-5 text-yellow-600 dark:text-yellow-400"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+        />
+      </svg>
+      <p class="text-sm text-yellow-800 dark:text-yellow-200">
+        Sistem offline. Timer tidak dapat digunakan.
+      </p>
+    </div>
+
     <div class="text-center mb-8">
       <h3 class="text-xl font-bold text-gray-800 dark:text-white mb-2">
-        Waktu Tersisa
+        Timer Kontrol Manual
       </h3>
       <div class="relative inline-block">
         <p
@@ -24,27 +45,39 @@
           class="absolute -top-2 -right-2 w-4 h-4 bg-yellow-500 rounded-full"
         ></div>
       </div>
-      <p
-        v-if="timerStore.isRunning"
-        class="text-sm text-blue-600 dark:text-blue-400 font-medium"
-      >
-        ⏱️ Timer sedang berjalan...
-      </p>
-      <p
-        v-else-if="timerStore.isPaused"
-        class="text-sm text-yellow-600 dark:text-yellow-400 font-medium"
-      >
-        ⏸️ Timer dijeda
-      </p>
-      <p
-        v-else-if="timerStore.timerData.enabled && !timerStore.isRunning"
-        class="text-sm text-orange-600 dark:text-orange-400 font-medium"
-      >
-        ⏳ Menunggu konfirmasi dari sistem...
-      </p>
-      <p v-else class="text-sm text-gray-500 dark:text-gray-400">
-        Timer tidak aktif
-      </p>
+
+      <!-- Timer Status Text -->
+      <div class="mt-2">
+        <p
+          v-if="timerStore.isRunning"
+          class="text-sm text-green-600 dark:text-green-400 font-medium flex items-center justify-center space-x-2"
+        >
+          <span class="relative flex h-3 w-3">
+            <span
+              class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"
+            ></span>
+            <span
+              class="relative inline-flex rounded-full h-3 w-3 bg-green-500"
+            ></span>
+          </span>
+          <span>Timer sedang berjalan...</span>
+        </p>
+        <p
+          v-else-if="timerStore.isPaused"
+          class="text-sm text-yellow-600 dark:text-yellow-400 font-medium"
+        >
+          ⏸️ Timer dijeda
+        </p>
+        <p
+          v-else-if="timerStore.timerData.enabled && !timerStore.isRunning"
+          class="text-sm text-orange-600 dark:text-orange-400 font-medium"
+        >
+          ⏳ Menunggu konfirmasi dari sistem...
+        </p>
+        <p v-else class="text-sm text-gray-500 dark:text-gray-400">
+          Timer tidak aktif
+        </p>
+      </div>
     </div>
 
     <div class="mb-6">
@@ -60,7 +93,7 @@
               v-model.number="days"
               type="number"
               min="0"
-              :disabled="timerStore.timerData.enabled"
+              :disabled="timerStore.timerData.enabled || !isConnected"
               class="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-center font-mono text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               @input="handleDaysInput"
               @blur="normalizeTime"
@@ -71,7 +104,7 @@
             >
               <button
                 @click="incrementDays"
-                :disabled="timerStore.timerData.enabled"
+                :disabled="timerStore.timerData.enabled || !isConnected"
                 type="button"
                 class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -89,7 +122,7 @@
               </button>
               <button
                 @click="decrementDays"
-                :disabled="timerStore.timerData.enabled"
+                :disabled="timerStore.timerData.enabled || !isConnected"
                 type="button"
                 class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -119,7 +152,7 @@
               v-model.number="hours"
               type="number"
               min="0"
-              :disabled="timerStore.timerData.enabled"
+              :disabled="timerStore.timerData.enabled || !isConnected"
               class="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-center font-mono text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               @input="handleHoursInput"
               @blur="normalizeTime"
@@ -130,7 +163,7 @@
             >
               <button
                 @click="incrementHours"
-                :disabled="timerStore.timerData.enabled"
+                :disabled="timerStore.timerData.enabled || !isConnected"
                 type="button"
                 class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -148,7 +181,7 @@
               </button>
               <button
                 @click="decrementHours"
-                :disabled="timerStore.timerData.enabled"
+                :disabled="timerStore.timerData.enabled || !isConnected"
                 type="button"
                 class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -178,7 +211,7 @@
               v-model.number="minutes"
               type="number"
               min="0"
-              :disabled="timerStore.timerData.enabled"
+              :disabled="timerStore.timerData.enabled || !isConnected"
               class="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-center font-mono text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               @input="handleMinutesInput"
               @blur="normalizeTime"
@@ -189,7 +222,7 @@
             >
               <button
                 @click="incrementMinutes"
-                :disabled="timerStore.timerData.enabled"
+                :disabled="timerStore.timerData.enabled || !isConnected"
                 type="button"
                 class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -207,7 +240,7 @@
               </button>
               <button
                 @click="decrementMinutes"
-                :disabled="timerStore.timerData.enabled"
+                :disabled="timerStore.timerData.enabled || !isConnected"
                 type="button"
                 class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -237,7 +270,7 @@
               v-model.number="seconds"
               type="number"
               min="0"
-              :disabled="timerStore.timerData.enabled"
+              :disabled="timerStore.timerData.enabled || !isConnected"
               class="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-center font-mono text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               @input="handleSecondsInput"
               @blur="normalizeTime"
@@ -248,7 +281,7 @@
             >
               <button
                 @click="incrementSeconds"
-                :disabled="timerStore.timerData.enabled"
+                :disabled="timerStore.timerData.enabled || !isConnected"
                 type="button"
                 class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -266,7 +299,7 @@
               </button>
               <button
                 @click="decrementSeconds"
-                :disabled="timerStore.timerData.enabled"
+                :disabled="timerStore.timerData.enabled || !isConnected"
                 type="button"
                 class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -302,10 +335,12 @@
     </div>
 
     <div class="flex space-x-4">
-      <!-- Start/Pause Button (Transforms based on state) -->
+      <!-- Start/Pause Button -->
       <button
         @click="handleStartPause"
-        :disabled="!isValidDuration && !timerStore.timerData.enabled"
+        :disabled="
+          (!isValidDuration && !timerStore.timerData.enabled) || !isConnected
+        "
         :class="startPauseButtonClass"
         class="flex-1 py-3 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
       >
@@ -316,7 +351,7 @@
       <!-- Stop Button -->
       <button
         @click="stopTimer"
-        :disabled="!timerStore.timerData.enabled"
+        :disabled="!timerStore.timerData.enabled || !isConnected"
         class="flex-1 bg-red-500 text-white py-3 rounded-lg font-semibold hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
       >
         <svg
@@ -341,26 +376,77 @@
         <span>Stop Timer</span>
       </button>
     </div>
+
+    <!-- Timer Info -->
+    <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
+      <p class="text-xs text-gray-700 dark:text-gray-300">
+        <strong>💡 Info Timer:</strong>
+      </p>
+      <ul
+        class="list-disc list-inside mt-2 text-xs text-gray-700 dark:text-gray-300 space-y-1"
+      >
+        <li>Timer hanya berfungsi dalam mode MANUAL</li>
+        <li>Saat timer aktif, semua perangkat akan beroperasi penuh</li>
+        <li>Timer dapat di-pause dan dilanjutkan kapan saja</li>
+        <li>
+          Fan collector akan mengikuti kondisi cuaca (aktif saat cerah & jam
+          06:00-17:00)
+        </li>
+      </ul>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, h } from "vue";
 import { useTimerStore } from "@/stores/timer";
+import { useDryerStore } from "@/stores/dryer";
 
 const timerStore = useTimerStore();
+const dryerStore = useDryerStore();
+
 const days = ref(0);
 const hours = ref(0);
 const minutes = ref(0);
 const seconds = ref(0);
+
+// Check connection status
+const isConnected = computed(() => {
+  const lastUpdate = dryerStore.systemStatus.last_update;
+  if (!lastUpdate) return false;
+
+  const parseTimestamp = (ts: string): Date => {
+    const [date, time] = ts.split(" ");
+    const [day, month, year] = date.split("/");
+    const [hours, minutes, seconds] = time.split(":");
+    return new Date(
+      parseInt(year),
+      parseInt(month) - 1,
+      parseInt(day),
+      parseInt(hours),
+      parseInt(minutes),
+      parseInt(seconds)
+    );
+  };
+
+  const lastUpdateTime = parseTimestamp(lastUpdate);
+  const now = new Date();
+  const diffMs = now.getTime() - lastUpdateTime.getTime();
+  const diffMinutes = diffMs / 60000;
+
+  return diffMinutes < 1;
+});
 
 const displayTime = computed(() => {
   return timerStore.timerDisplay;
 });
 
 const statusColor = computed(() => {
+  if (!isConnected.value) {
+    return "text-gray-400 dark:text-gray-600";
+  }
   if (timerStore.isRunning) {
-    return "text-blue-600 dark:text-blue-400";
+    return "text-green-600 dark:text-green-400";
   } else if (timerStore.isPaused) {
     return "text-yellow-600 dark:text-yellow-400";
   } else {
@@ -394,7 +480,6 @@ const isValidDuration = computed(() => {
   return totalSeconds.value > 0;
 });
 
-// Start/Pause button state
 const startPauseText = computed(() => {
   if (timerStore.isPaused) {
     return "Lanjutkan Timer";
@@ -406,6 +491,9 @@ const startPauseText = computed(() => {
 });
 
 const startPauseButtonClass = computed(() => {
+  if (!isConnected.value) {
+    return "bg-gray-400 text-white";
+  }
   if (timerStore.isPaused) {
     return "bg-blue-500 text-white hover:bg-blue-600";
   } else if (timerStore.isRunning || timerStore.timerData.enabled) {
@@ -417,7 +505,6 @@ const startPauseButtonClass = computed(() => {
 
 const startPauseIcon = computed(() => {
   if (timerStore.isPaused) {
-    // Resume icon (play)
     return h(
       "svg",
       {
@@ -442,7 +529,6 @@ const startPauseIcon = computed(() => {
       ]
     );
   } else if (timerStore.isRunning || timerStore.timerData.enabled) {
-    // Pause icon
     return h(
       "svg",
       {
@@ -461,7 +547,6 @@ const startPauseIcon = computed(() => {
       ]
     );
   } else {
-    // Start icon (play)
     return h(
       "svg",
       {
@@ -488,43 +573,36 @@ const startPauseIcon = computed(() => {
   }
 });
 
-// Normalize time - convert overflow automatically
 const normalizeTime = () => {
-  // Convert seconds to minutes
   if (seconds.value >= 60) {
     const addMinutes = Math.floor(seconds.value / 60);
     minutes.value += addMinutes;
     seconds.value = seconds.value % 60;
   }
 
-  // Convert minutes to hours
   if (minutes.value >= 60) {
     const addHours = Math.floor(minutes.value / 60);
     hours.value += addHours;
     minutes.value = minutes.value % 60;
   }
 
-  // Convert hours to days
   if (hours.value >= 24) {
     const addDays = Math.floor(hours.value / 24);
     days.value += addDays;
     hours.value = hours.value % 24;
   }
 
-  // Prevent negative values
   if (days.value < 0) days.value = 0;
   if (hours.value < 0) hours.value = 0;
   if (minutes.value < 0) minutes.value = 0;
   if (seconds.value < 0) seconds.value = 0;
 
-  // Handle NaN
   if (isNaN(days.value)) days.value = 0;
   if (isNaN(hours.value)) hours.value = 0;
   if (isNaN(minutes.value)) minutes.value = 0;
   if (isNaN(seconds.value)) seconds.value = 0;
 };
 
-// Input handlers
 const handleDaysInput = () => {
   if (days.value < 0) days.value = 0;
   if (isNaN(days.value)) days.value = 0;
@@ -545,7 +623,6 @@ const handleSecondsInput = () => {
   if (isNaN(seconds.value)) seconds.value = 0;
 };
 
-// Increment/Decrement functions
 const incrementDays = () => {
   days.value++;
 };
@@ -610,7 +687,6 @@ const decrementSeconds = () => {
   }
 };
 
-// Handle keyboard input - only allow numbers
 const handleKeyDown = (event: KeyboardEvent) => {
   const allowedKeys = [
     "Backspace",
@@ -631,24 +707,21 @@ const handleKeyDown = (event: KeyboardEvent) => {
   }
 };
 
-// Main handler for Start/Pause button
 const handleStartPause = () => {
+  if (!isConnected.value) return;
+
   if (timerStore.isPaused) {
-    // Resume timer
     timerStore.resumeTimer();
   } else if (timerStore.isRunning || timerStore.timerData.enabled) {
-    // Pause timer
     timerStore.pauseTimer();
   } else {
-    // Start new timer
     startTimer();
   }
 };
 
 const startTimer = async () => {
-  if (!isValidDuration.value) return;
+  if (!isValidDuration.value || !isConnected.value) return;
 
-  // Normalize one more time before sending
   normalizeTime();
 
   console.log("🚀 Starting timer:", {
@@ -668,19 +741,16 @@ const startTimer = async () => {
 
 const stopTimer = async () => {
   await timerStore.stopTimer();
-  // Reset input fields
   days.value = 0;
   hours.value = 0;
   minutes.value = 0;
   seconds.value = 0;
 };
 
-// Watch untuk timer data dari store (untuk reset dari session baru)
 watch(
   () => timerStore.timerData,
   (newData) => {
     if (!newData.enabled && newData.duration === 0 && newData.remaining === 0) {
-      // Timer direset dari luar (session baru atau manual stop)
       days.value = 0;
       hours.value = 0;
       minutes.value = 0;
@@ -692,7 +762,6 @@ watch(
 </script>
 
 <style scoped>
-/* Hide default number input spinners */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;

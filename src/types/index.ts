@@ -1,5 +1,4 @@
-// FILE: src/types/index.ts (UPDATED - Added SystemStatus interface)
-// ============================================
+// FILE: src/types/index.ts (UPDATED - Added auto_mode)
 
 export interface ConfigData {
   targetMoisture: number;
@@ -10,6 +9,7 @@ export interface ConfigData {
 }
 
 export interface ControlData {
+  auto_mode: boolean; // NEW - Control mode (true = AUTO, false = MANUAL)
   manual_heater_enable: boolean;
   manual_heater_state: boolean;
   manual_fan_collector_enable: boolean;
@@ -79,6 +79,7 @@ export interface SessionInfo {
   initial_temperature?: number;
   temperature_target_min?: number;
   temperature_target_max?: number;
+  control_mode?: string; // NEW - "AUTO" or "MANUAL"
   status: string;
 }
 
@@ -94,5 +95,6 @@ export interface SessionDataPoint {
   exhaust: string;
   humidity_control?: boolean;
   temperature_control?: boolean;
+  control_mode?: string; // NEW - "AUTO" or "MANUAL"
   notifications?: string[];
 }

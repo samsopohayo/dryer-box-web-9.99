@@ -1,12 +1,17 @@
 <template>
   <div
-    class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] border border-transparent dark:border-gray-700"
+    class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] border border-transparent dark:border-gray-700 relative overflow-hidden"
   >
     <div class="flex items-center justify-between">
       <div>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">{{ label }}</p>
         <p
-          class="text-3xl font-bold text-gray-800 dark:text-white transition-colors duration-300"
+          class="text-3xl font-bold transition-colors duration-300"
+          :class="[
+            offline
+              ? 'text-gray-400 dark:text-gray-600'
+              : 'text-gray-800 dark:text-white',
+          ]"
         >
           {{ displayValue }}
         </p>
@@ -22,6 +27,12 @@
         />
       </div>
     </div>
+
+    <!-- Offline indicator bar -->
+    <div
+      v-if="offline"
+      class="absolute bottom-0 left-0 right-0 h-1 bg-red-500"
+    ></div>
   </div>
 </template>
 
@@ -32,9 +43,14 @@ const props = defineProps<{
   label: string;
   value: number | string;
   unit: string;
+  offline?: boolean;
 }>();
 
 const displayValue = computed(() => {
+  if (props.offline) {
+    return "--";
+  }
+
   if (typeof props.value === "number") {
     return `${props.value.toFixed(1)}${props.unit ?? ""}`;
   }
@@ -44,6 +60,12 @@ const displayValue = computed(() => {
 // Icon background with gradient based on label
 const iconBackgroundClass = computed(() => {
   const labelLower = props.label.toLowerCase();
+  const baseClass = props.offline
+    ? "bg-gray-200 dark:bg-gray-700 opacity-50"
+    : "";
+
+  if (baseClass) return baseClass;
+
   if (labelLower.includes("suhu") || labelLower.includes("temp"))
     return "bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900 dark:to-red-800";
   if (labelLower.includes("kelembapan") || labelLower.includes("humidity"))
@@ -60,6 +82,12 @@ const iconBackgroundClass = computed(() => {
 // Icon color class
 const iconColorClass = computed(() => {
   const labelLower = props.label.toLowerCase();
+  const offlineClass = props.offline
+    ? "text-gray-400 dark:text-gray-600 w-8 h-8"
+    : "";
+
+  if (offlineClass) return offlineClass;
+
   if (labelLower.includes("suhu") || labelLower.includes("temp"))
     return "text-red-600 dark:text-red-300 w-8 h-8";
   if (labelLower.includes("kelembapan") || labelLower.includes("humidity"))
@@ -94,7 +122,7 @@ const sensorIcon = computed(() => {
     );
   }
 
-  // Humidity/Kelembapan icon (water drops + thermometer)
+  // Humidity icon
   if (labelLower.includes("kelembapan") || labelLower.includes("humidity")) {
     return h(
       "svg",
@@ -111,7 +139,7 @@ const sensorIcon = computed(() => {
     );
   }
 
-  // Moisture/Kadar Air icon (water drop + percentage)
+  // Moisture icon
   if (labelLower.includes("kadar") || labelLower.includes("moisture")) {
     return h(
       "svg",
@@ -128,7 +156,7 @@ const sensorIcon = computed(() => {
     );
   }
 
-  // Weight/Berat icon (scale)
+  // Weight icon
   if (labelLower.includes("berat") || labelLower.includes("weight")) {
     return h(
       "svg",
@@ -145,7 +173,7 @@ const sensorIcon = computed(() => {
     );
   }
 
-  // Process/Proses icon (cog/settings)
+  // Process/Status icon
   if (labelLower.includes("proses") || labelLower.includes("status")) {
     return h(
       "svg",

@@ -1,15 +1,15 @@
 <template>
   <div
-    class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] border border-transparent dark:border-gray-700"
+    class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] border border-transparent dark:border-gray-700 relative overflow-hidden"
   >
     <div class="flex items-center justify-between">
       <div>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Status</p>
         <p
           class="text-3xl font-bold transition-colors duration-300"
-          :class="statusColor"
+          :class="offline ? 'text-gray-400 dark:text-gray-600' : statusColor"
         >
-          {{ status }}
+          {{ offline ? "Offline" : status }}
         </p>
       </div>
       <div
@@ -23,6 +23,12 @@
         />
       </div>
     </div>
+
+    <!-- Offline indicator bar -->
+    <div
+      v-if="offline"
+      class="absolute bottom-0 left-0 right-0 h-1 bg-red-500"
+    ></div>
   </div>
 </template>
 
@@ -31,10 +37,13 @@ import { computed, h } from "vue";
 
 const props = defineProps<{
   status: string;
+  offline?: boolean;
 }>();
 
 // Status color
 const statusColor = computed(() => {
+  if (props.offline) return "text-gray-400 dark:text-gray-600";
+
   const statusLower = props.status.toLowerCase();
   if (statusLower.includes("kering"))
     return "text-green-600 dark:text-green-400";
@@ -49,6 +58,10 @@ const statusColor = computed(() => {
 
 // Icon background class with gradient
 const iconBackgroundClass = computed(() => {
+  if (props.offline) {
+    return "bg-gray-200 dark:bg-gray-700 opacity-50";
+  }
+
   const statusLower = props.status.toLowerCase();
   if (statusLower.includes("kering"))
     return "bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800";
@@ -65,6 +78,10 @@ const iconBackgroundClass = computed(() => {
 
 // Icon color class
 const iconColorClass = computed(() => {
+  if (props.offline) {
+    return "text-gray-400 dark:text-gray-600 w-8 h-8";
+  }
+
   const statusLower = props.status.toLowerCase();
   if (statusLower.includes("kering"))
     return "text-green-600 dark:text-green-300 w-8 h-8";
@@ -81,6 +98,27 @@ const iconColorClass = computed(() => {
 
 // Status icon component
 const statusIcon = computed(() => {
+  if (props.offline) {
+    // Offline icon
+    return h(
+      "svg",
+      {
+        fill: "none",
+        stroke: "currentColor",
+        viewBox: "0 0 24 24",
+        class: "w-8 h-8",
+      },
+      [
+        h("path", {
+          "stroke-linecap": "round",
+          "stroke-linejoin": "round",
+          "stroke-width": "2",
+          d: "M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414",
+        }),
+      ]
+    );
+  }
+
   const statusLower = props.status.toLowerCase();
 
   // Kering - Check icon
