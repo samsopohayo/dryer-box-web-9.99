@@ -376,24 +376,6 @@
         <span>Stop Timer</span>
       </button>
     </div>
-
-    <!-- Timer Info -->
-    <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
-      <p class="text-xs text-gray-700 dark:text-gray-300">
-        <strong>💡 Info Timer:</strong>
-      </p>
-      <ul
-        class="list-disc list-inside mt-2 text-xs text-gray-700 dark:text-gray-300 space-y-1"
-      >
-        <li>Timer hanya berfungsi dalam mode MANUAL</li>
-        <li>Saat timer aktif, semua perangkat akan beroperasi penuh</li>
-        <li>Timer dapat di-pause dan dilanjutkan kapan saja</li>
-        <li>
-          Fan collector akan mengikuti kondisi cuaca (aktif saat cerah & jam
-          06:00-17:00)
-        </li>
-      </ul>
-    </div>
   </div>
 </template>
 

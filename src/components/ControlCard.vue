@@ -136,22 +136,6 @@ const isOn = computed(() => {
   }
 });
 
-// Device info text
-const deviceInfo = computed(() => {
-  switch (props.device) {
-    case "heater":
-      return "Kontrol pemanas untuk mengatur suhu pengeringan";
-    case "fan_panel":
-      return "Fan panel untuk sirkulasi udara di dalam chamber (Pin 26)";
-    case "fan_collector":
-      return "Fan collector untuk mengambil panas dari panel surya (Pin 25) - Aktif saat cuaca cerah & jam 06:00-17:00";
-    case "exhaust":
-      return "Exhaust untuk mengeluarkan kelembapan berlebih";
-    default:
-      return "";
-  }
-});
-
 const statusText = computed(() => {
   if (!isConnected.value) return "Offline";
   return isOn.value ? "Hidup" : "Mati";
