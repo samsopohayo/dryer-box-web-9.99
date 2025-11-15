@@ -1,5 +1,3 @@
-// FILE: src/types/index.ts (FIXED - Removed manual_fan_state typo)
-
 export interface ConfigData {
   targetMoisture: number;
   targetHumidityMin: number;
@@ -18,7 +16,6 @@ export interface ControlData {
   manual_fan_panel_state: boolean;
   manual_exhaust_enable: boolean;
   manual_exhaust_state: boolean;
-  // NOTE: NO manual_fan_state - only fan_panel and fan_collector
 }
 
 export interface SensorData {

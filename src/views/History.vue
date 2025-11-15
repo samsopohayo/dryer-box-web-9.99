@@ -19,66 +19,225 @@
           <div
             class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6 transition-colors"
           >
-            <!-- Session Selector -->
-            <div class="mb-6">
-              <label
-                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-              >
-                Pilih periode pengeringan
-              </label>
-              <select
-                v-model="selectedSession"
-                class="w-full md:w-1/3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
-                @change="loadSessionData"
-              >
-                <option value="">-- Pilih session --</option>
-                <option v-for="(session, id) in sessions" :key="id" :value="id">
-                  {{ session.session_id }} - {{ session.start_time }}
-                </option>
-              </select>
+            <!-- Title & Sort Controls -->
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="text-xl font-bold text-gray-800 dark:text-white">
+                Rekap Pengeringan
+              </h2>
+              <div class="flex items-center space-x-2">
+                <label class="text-sm text-gray-600 dark:text-gray-400">
+                  Urutkan:
+                </label>
+                <select
+                  v-model="sortOrder"
+                  class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-sm"
+                >
+                  <option value="newest">Terbaru</option>
+                  <option value="oldest">Terlama</option>
+                </select>
+              </div>
             </div>
 
-            <!-- Empty State -->
+            <!-- Main Sessions Table -->
             <div
-              v-if="!selectedSession"
-              class="text-center py-12 text-gray-500 dark:text-gray-400"
+              v-if="currentView === 'list'"
+              class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
             >
-              <svg
-                class="w-16 h-16 mx-auto mb-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              <p class="text-base sm:text-lg mb-2">
-                Silakan pilih session pengeringan
-              </p>
-              <p class="text-xs sm:text-sm">
-                Total sesi tersedia: {{ Object.keys(sessions).length }}
-              </p>
-            </div>
+              <!-- Desktop Table -->
+              <div class="hidden md:block overflow-x-auto">
+                <table class="w-full">
+                  <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th
+                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                      >
+                        No
+                      </th>
+                      <th
+                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                      >
+                        SAP
+                      </th>
+                      <th
+                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                      >
+                        Date and Time
+                      </th>
+                      <th
+                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                      >
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
+                  >
+                    <tr v-if="sortedSessions.length === 0">
+                      <td
+                        colspan="4"
+                        class="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
+                      >
+                        <svg
+                          class="w-16 h-16 mx-auto mb-4 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                        <p class="text-base">Tidak ada data pengeringan</p>
+                      </td>
+                    </tr>
+                    <tr
+                      v-for="(session, index) in sortedSessions"
+                      :key="session.id"
+                      @click="viewRecap30Min(session.id)"
+                      class="hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer"
+                    >
+                      <td
+                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                      >
+                        {{ index + 1 }}
+                      </td>
+                      <td
+                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                      >
+                        {{ session.session_id }}
+                      </td>
+                      <td
+                        class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
+                      >
+                        {{ getSessionName(session) }}
+                      </td>
+                      <td class="px-4 py-3 text-sm" @click.stop>
+                        <div class="flex items-center space-x-2">
+                          <button
+                            @click="viewDetailData(session.id)"
+                            class="px-3 py-1.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition text-xs font-semibold"
+                          >
+                            Detail
+                          </button>
+                          <button
+                            @click="downloadRecapPDF(session.id)"
+                            class="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition text-xs font-semibold"
+                          >
+                            Unduh
+                          </button>
+                          <button
+                            @click="deleteSession(session.id)"
+                            class="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-xs font-semibold"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-            <!-- Loading State -->
-            <div v-else-if="isLoading" class="text-center py-12">
+              <!-- Mobile Cards -->
               <div
-                class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"
-              ></div>
-              <p class="mt-4 text-gray-600 dark:text-gray-400">
-                Memuat data...
-              </p>
+                class="md:hidden divide-y divide-gray-200 dark:divide-gray-700"
+              >
+                <div
+                  v-if="sortedSessions.length === 0"
+                  class="p-6 text-center text-gray-500 dark:text-gray-400"
+                >
+                  <svg
+                    class="w-16 h-16 mx-auto mb-4 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  <p class="text-base">Tidak ada data pengeringan</p>
+                </div>
+
+                <div
+                  v-for="(session, index) in sortedSessions"
+                  :key="session.id"
+                  @click="viewRecap30Min(session.id)"
+                  class="p-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer"
+                >
+                  <div class="flex items-center justify-between mb-3">
+                    <span
+                      class="text-xs font-semibold text-gray-500 dark:text-gray-400"
+                    >
+                      #{{ index + 1 }}
+                    </span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ session.session_id }}
+                    </span>
+                  </div>
+                  <p
+                    class="text-sm font-semibold text-gray-800 dark:text-white mb-3"
+                  >
+                    {{ getSessionName(session) }}
+                  </p>
+                  <div class="flex items-center space-x-2" @click.stop>
+                    <button
+                      @click="viewDetailData(session.id)"
+                      class="flex-1 px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition text-xs font-semibold"
+                    >
+                      Detail
+                    </button>
+                    <button
+                      @click="downloadRecapPDF(session.id)"
+                      class="flex-1 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition text-xs font-semibold"
+                    >
+                      Unduh
+                    </button>
+                    <button
+                      @click="deleteSession(session.id)"
+                      class="flex-1 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-xs font-semibold"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <!-- Data Display -->
-            <div v-else>
+            <!-- Recap 30 Min View -->
+            <div v-else-if="currentView === 'recap30'" class="space-y-6">
+              <div class="flex items-center justify-between">
+                <button
+                  @click="backToList"
+                  class="flex items-center space-x-2 text-primary hover:underline"
+                >
+                  <svg
+                    class="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                    />
+                  </svg>
+                  <span class="font-semibold">Kembali</span>
+                </button>
+              </div>
+
               <!-- Session Info Cards - Responsive Grid -->
               <div
-                class="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-xs sm:text-sm"
+                class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-xs sm:text-sm"
               >
                 <div
                   class="bg-gray-50 dark:bg-gray-700 p-3 sm:p-4 rounded-lg overflow-hidden"
@@ -136,7 +295,7 @@
 
               <!-- Weight & Moisture Cards - Responsive Grid -->
               <div
-                class="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm"
+                class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm"
               >
                 <div
                   class="bg-blue-50 dark:bg-blue-900 p-3 sm:p-4 rounded-lg overflow-hidden"
@@ -177,7 +336,7 @@
               </div>
 
               <!-- Data Points Count & Notification Summary -->
-              <div class="mb-4 flex flex-wrap gap-4 text-xs sm:text-sm">
+              <div class="flex flex-wrap gap-4 text-xs sm:text-sm">
                 <div class="text-gray-600 dark:text-gray-400">
                   Total data points:
                   <span class="font-semibold">{{ dataPointsCount }}</span>
@@ -192,363 +351,367 @@
                 </div>
               </div>
 
-              <!-- Table - Desktop -->
-              <div
-                class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
-              >
-                <div class="hidden lg:block overflow-x-auto">
-                  <table class="w-full">
-                    <thead class="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        <th
-                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                        >
-                          No
-                        </th>
-                        <th
-                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                        >
-                          Waktu
-                        </th>
-                        <th
-                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                        >
-                          Suhu (°C)
-                        </th>
-                        <th
-                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                        >
-                          Humidity (%)
-                        </th>
-                        <th
-                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                        >
-                          Kadar Air (%)
-                        </th>
-                        <th
-                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                        >
-                          Berat (g)
-                        </th>
-                        <th
-                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                        >
-                          Status
-                        </th>
-                        <th
-                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                        >
-                          Heater
-                        </th>
-                        <th
-                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                        >
-                          Fan
-                        </th>
-                        <th
-                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                        >
-                          Exhaust
-                        </th>
-                        <th
-                          class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider min-w-[200px]"
-                        >
-                          Keterangan
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody
-                      class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
-                    >
-                      <tr v-if="dataPointsCount === 0">
-                        <td
-                          colspan="11"
-                          class="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
-                        >
-                          Tidak ada data untuk session ini
-                        </td>
-                      </tr>
-                      <tr
-                        v-for="(data, index) in sessionDataPoints"
-                        :key="index"
-                        class="hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-                      >
-                        <td
-                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                        >
-                          {{ index + 1 }}
-                        </td>
-                        <td
-                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300 whitespace-nowrap"
-                        >
-                          {{ data.timestamp }}
-                        </td>
-                        <td
-                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                        >
-                          {{ data.temperature.toFixed(1) }}
-                        </td>
-                        <td
-                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                        >
-                          {{ data.humidity.toFixed(1) }}
-                        </td>
-                        <td
-                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                        >
-                          {{ data.moisture.toFixed(1) }}
-                        </td>
-                        <td
-                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                        >
-                          {{ data.weight.toFixed(1) }}
-                        </td>
-                        <td class="px-4 py-3 text-sm">
-                          <span
-                            class="px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
-                            :class="getStatusClass(data.status)"
-                          >
-                            {{ data.status }}
-                          </span>
-                        </td>
-                        <td
-                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                        >
-                          {{ data.heater }}
-                        </td>
-                        <td
-                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                        >
-                          {{ data.fan }}
-                        </td>
-                        <td
-                          class="px-4 py-3 text-sm text-gray-800 dark:text-gray-300"
-                        >
-                          {{ data.exhaust }}
-                        </td>
-                        <td class="px-4 py-3 text-sm">
-                          <div
-                            v-if="
-                              data.notifications &&
-                              data.notifications.length > 0
-                            "
-                            class="space-y-1"
-                          >
-                            <div
-                              v-for="(notif, nIdx) in data.notifications"
-                              :key="nIdx"
-                              class="text-xs"
-                              :class="getNotificationColor(notif)"
-                            >
-                              {{ notif }}
-                            </div>
-                          </div>
-                          <span
-                            v-else
-                            class="text-gray-400 dark:text-gray-500 text-xs"
-                            >-</span
-                          >
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!-- Mobile/Tablet Cards View -->
+              <div v-if="isLoading" class="text-center py-12">
                 <div
-                  class="lg:hidden divide-y divide-gray-200 dark:divide-gray-700"
+                  class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"
+                ></div>
+                <p class="mt-4 text-gray-600 dark:text-gray-400">
+                  Memuat data rekap...
+                </p>
+              </div>
+
+              <div v-else>
+                <div
+                  class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
                 >
-                  <div
-                    v-if="dataPointsCount === 0"
-                    class="p-6 text-center text-gray-500 dark:text-gray-400"
-                  >
-                    Tidak ada data untuk session ini
-                  </div>
-
-                  <div
-                    v-for="(data, index) in sessionDataPoints"
-                    :key="index"
-                    class="p-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-                  >
-                    <!-- Card Header -->
-                    <div
-                      class="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700"
-                    >
-                      <div class="flex items-center space-x-2">
-                        <span
-                          class="text-xs font-semibold text-gray-500 dark:text-gray-400"
-                        >
-                          #{{ index + 1 }}
-                        </span>
-                        <span
-                          class="px-2 py-1 rounded-full text-xs font-semibold"
-                          :class="getStatusClass(data.status)"
-                        >
-                          {{ data.status }}
-                        </span>
-                      </div>
-                      <div class="text-xs text-gray-500 dark:text-gray-400">
-                        {{ data.timestamp }}
-                      </div>
-                    </div>
-
-                    <!-- Card Body - Two Column Grid -->
-                    <div class="grid grid-cols-2 gap-3 mb-3">
-                      <div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                          Suhu
-                        </p>
-                        <p
-                          class="text-sm font-semibold text-red-600 dark:text-red-400"
-                        >
-                          {{ data.temperature.toFixed(1) }}°C
-                        </p>
-                      </div>
-                      <div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                          Humidity
-                        </p>
-                        <p
-                          class="text-sm font-semibold text-blue-600 dark:text-blue-400"
-                        >
-                          {{ data.humidity.toFixed(1) }}%
-                        </p>
-                      </div>
-                      <div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                          Kadar Air
-                        </p>
-                        <p
-                          class="text-sm font-semibold text-green-600 dark:text-green-400"
-                        >
-                          {{ data.moisture.toFixed(1) }}%
-                        </p>
-                      </div>
-                      <div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                          Berat
-                        </p>
-                        <p
-                          class="text-sm font-semibold text-purple-600 dark:text-purple-400"
-                        >
-                          {{ data.weight.toFixed(1) }} g
-                        </p>
-                      </div>
-                      <div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                          Heater
-                        </p>
-                        <p
-                          class="text-sm font-semibold text-gray-800 dark:text-gray-200"
-                        >
-                          {{ data.heater }}
-                        </p>
-                      </div>
-                      <div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                          Fan
-                        </p>
-                        <p
-                          class="text-sm font-semibold text-gray-800 dark:text-gray-200"
-                        >
-                          {{ data.fan }}
-                        </p>
-                      </div>
-                      <div class="col-span-2">
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                          Exhaust
-                        </p>
-                        <p
-                          class="text-sm font-semibold text-gray-800 dark:text-gray-200"
-                        >
-                          {{ data.exhaust }}
-                        </p>
-                      </div>
-                    </div>
-
-                    <!-- Notifications Section (Mobile) -->
-                    <div
-                      v-if="data.notifications && data.notifications.length > 0"
-                      class="pt-3 border-t border-gray-200 dark:border-gray-700"
-                    >
-                      <p
-                        class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-semibold"
-                      >
-                        Keterangan:
-                      </p>
-                      <div class="space-y-2">
-                        <div
-                          v-for="(notif, nIdx) in data.notifications"
-                          :key="nIdx"
-                          class="p-2 rounded bg-gray-50 dark:bg-gray-700"
-                        >
-                          <span
-                            class="text-xs"
-                            :class="getNotificationColor(notif)"
+                  <div class="overflow-x-auto">
+                    <table class="w-full">
+                      <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                          <th
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase"
                           >
-                            {{ notif }}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                            Interval
+                          </th>
+                          <th
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase"
+                          >
+                            Rata² Suhu
+                          </th>
+                          <th
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase"
+                          >
+                            Rata² RH
+                          </th>
+                          <th
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase"
+                          >
+                            Rata² KA
+                          </th>
+                          <th
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase"
+                          >
+                            Error
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody
+                        class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
+                      >
+                        <tr v-if="recap30MinData.length === 0">
+                          <td
+                            colspan="5"
+                            class="px-4 py-8 text-center text-gray-500"
+                          >
+                            Tidak ada data
+                          </td>
+                        </tr>
+                        <tr
+                          v-for="(item, idx) in recap30MinData"
+                          :key="idx"
+                          class="hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                          <td class="px-4 py-3 text-sm">
+                            {{ item.timeRange }}
+                          </td>
+                          <td class="px-4 py-3 text-sm">
+                            {{ item.avgTemp.toFixed(1) }}°C
+                          </td>
+                          <td class="px-4 py-3 text-sm">
+                            {{ item.avgHumidity.toFixed(1) }}%
+                          </td>
+                          <td class="px-4 py-3 text-sm">
+                            {{ item.avgMoisture.toFixed(1) }}%
+                          </td>
+                          <td class="px-4 py-3 text-sm">
+                            <span
+                              v-if="item.errors.length === 0"
+                              class="text-gray-400"
+                              >-</span
+                            >
+                            <div v-else class="text-xs text-red-600">
+                              <div v-for="(err, i) in item.errors" :key="i">
+                                {{ err }}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
+                </div>
+
+                <div class="flex gap-4 mt-6">
+                  <button
+                    @click="downloadRecap30PDF"
+                    class="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2"
+                  >
+                    <span>Download PDF</span>
+                  </button>
+                  <button
+                    @click="deleteCurrentSession"
+                    class="flex-1 px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center justify-center gap-2"
+                  >
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Detail View -->
+            <div v-else-if="currentView === 'detail'" class="space-y-6">
+              <div class="flex items-center justify-between">
+                <button
+                  @click="backToList"
+                  class="flex items-center space-x-2 text-primary hover:underline"
+                >
+                  <svg
+                    class="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                    />
+                  </svg>
+                  <span class="font-semibold">Kembali</span>
+                </button>
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">
+                  Detail Data
+                </h3>
+              </div>
+
+              <!-- Session Info Cards - Responsive Grid -->
+              <div
+                class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-xs sm:text-sm"
+              >
+                <div
+                  class="bg-gray-50 dark:bg-gray-700 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-400 truncate">
+                    Session ID
+                  </p>
+                  <p
+                    class="font-semibold text-gray-800 dark:text-white truncate"
+                  >
+                    {{ currentSession?.session_id || "-" }}
+                  </p>
+                </div>
+                <div
+                  class="bg-gray-50 dark:bg-gray-700 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-400 truncate">
+                    Waktu Mulai
+                  </p>
+                  <p
+                    class="font-semibold text-gray-800 dark:text-white truncate"
+                  >
+                    {{ formatDateTime(currentSession?.start_time) }}
+                  </p>
+                </div>
+                <div
+                  class="bg-gray-50 dark:bg-gray-700 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-400 truncate">
+                    Waktu Selesai
+                  </p>
+                  <p
+                    class="font-semibold text-gray-800 dark:text-white truncate"
+                  >
+                    {{
+                      currentSession?.end_time
+                        ? formatDateTime(currentSession.end_time)
+                        : "Berjalan"
+                    }}
+                  </p>
+                </div>
+                <div
+                  class="bg-gray-50 dark:bg-gray-700 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-400 truncate">
+                    Status
+                  </p>
+                  <p
+                    class="font-semibold capitalize text-gray-800 dark:text-white truncate"
+                  >
+                    {{ currentSession?.status || "-" }}
+                  </p>
                 </div>
               </div>
 
-              <!-- Action Buttons - Responsive -->
-              <div class="mt-6 flex flex-col sm:flex-row gap-3 sm:gap-4">
-                <button
-                  @click="downloadPDF"
-                  :disabled="dataPointsCount === 0"
-                  class="w-full sm:flex-1 px-4 sm:px-6 py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              <!-- Weight & Moisture Cards - Responsive Grid -->
+              <div
+                class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm"
+              >
+                <div
+                  class="bg-blue-50 dark:bg-blue-900 p-3 sm:p-4 rounded-lg overflow-hidden"
                 >
-                  <svg
-                    class="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                  <p class="text-gray-600 dark:text-gray-300 truncate">
+                    Berat Awal
+                  </p>
+                  <p
+                    class="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-300 truncate"
                   >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                  <span>Download PDF</span>
-                </button>
-                <button
-                  @click="deleteSession"
-                  class="w-full sm:flex-1 px-4 sm:px-6 py-3 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition flex items-center justify-center space-x-2"
+                    {{ currentSession?.initial_weight?.toFixed(2) || "0" }} g
+                  </p>
+                </div>
+                <div
+                  class="bg-green-50 dark:bg-green-900 p-3 sm:p-4 rounded-lg overflow-hidden"
                 >
-                  <svg
-                    class="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                  <p class="text-gray-600 dark:text-gray-300 truncate">
+                    Berat Akhir
+                  </p>
+                  <p
+                    class="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-300 truncate"
                   >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                  <span>Hapus Data</span>
-                </button>
+                    {{ currentSession?.final_weight?.toFixed(2) || "-" }} g
+                  </p>
+                </div>
+                <div
+                  class="bg-purple-50 dark:bg-purple-900 p-3 sm:p-4 rounded-lg overflow-hidden"
+                >
+                  <p class="text-gray-600 dark:text-gray-300 truncate">
+                    Kadar Air Akhir
+                  </p>
+                  <p
+                    class="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-300 truncate"
+                  >
+                    {{ currentSession?.final_moisture?.toFixed(2) || "-" }} %
+                  </p>
+                </div>
               </div>
 
-              <!-- Info Note -->
-              <div
-                class="mt-4 p-3 sm:p-4 bg-yellow-50 dark:bg-yellow-900 rounded-lg"
-              >
-                <p class="text-xs text-gray-700 dark:text-gray-300">
-                  <strong>💡 Catatan:</strong> Data rekap akan otomatis
-                  tersimpan setiap 15 detik selama proses pengeringan
-                  berlangsung. Kolom keterangan menampilkan notifikasi sistem
-                  yang terjadi pada waktu data point tersebut. Export PDF akan
-                  menyertakan semua data termasuk keterangan.
+              <!-- Data Points Count & Notification Summary -->
+              <div class="flex flex-wrap gap-4 text-xs sm:text-sm">
+                <div class="text-gray-600 dark:text-gray-400">
+                  Total data points:
+                  <span class="font-semibold">{{ dataPointsCount }}</span>
+                </div>
+                <div class="text-gray-600 dark:text-gray-400">
+                  Total notifikasi:
+                  <span
+                    class="font-semibold text-orange-600 dark:text-orange-400"
+                  >
+                    {{ totalNotifications }}
+                  </span>
+                </div>
+              </div>
+
+              <div v-if="isLoading" class="text-center py-12">
+                <div
+                  class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"
+                ></div>
+                <p class="mt-4 text-gray-600 dark:text-gray-400">
+                  Memuat data...
                 </p>
+              </div>
+
+              <div v-else>
+                <div
+                  class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
+                >
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                      <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                          <th class="px-4 py-3 text-left text-xs font-medium">
+                            No
+                          </th>
+                          <th class="px-4 py-3 text-left text-xs font-medium">
+                            Waktu
+                          </th>
+                          <th class="px-4 py-3 text-left text-xs font-medium">
+                            Suhu
+                          </th>
+                          <th class="px-4 py-3 text-left text-xs font-medium">
+                            RH
+                          </th>
+                          <th class="px-4 py-3 text-left text-xs font-medium">
+                            KA
+                          </th>
+                          <th class="px-4 py-3 text-left text-xs font-medium">
+                            Berat
+                          </th>
+                          <th class="px-4 py-3 text-left text-xs font-medium">
+                            Status
+                          </th>
+                          <th class="px-4 py-3 text-left text-xs font-medium">
+                            Heater
+                          </th>
+                          <th class="px-4 py-3 text-left text-xs font-medium">
+                            Fan
+                          </th>
+                          <th class="px-4 py-3 text-left text-xs font-medium">
+                            Exhaust
+                          </th>
+                          <th class="px-4 py-3 text-left text-xs font-medium">
+                            Ket
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody class="bg-white dark:bg-gray-800 divide-y">
+                        <tr v-if="sessionDataPoints.length === 0">
+                          <td colspan="11" class="px-4 py-8 text-center">
+                            Tidak ada data
+                          </td>
+                        </tr>
+                        <tr
+                          v-for="(d, i) in sessionDataPoints"
+                          :key="i"
+                          class="hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                          <td class="px-4 py-3">{{ i + 1 }}</td>
+                          <td class="px-4 py-3 whitespace-nowrap">
+                            {{ d.timestamp }}
+                          </td>
+                          <td class="px-4 py-3">
+                            {{ d.temperature.toFixed(1) }}
+                          </td>
+                          <td class="px-4 py-3">{{ d.humidity.toFixed(1) }}</td>
+                          <td class="px-4 py-3">{{ d.moisture.toFixed(1) }}</td>
+                          <td class="px-4 py-3">{{ d.weight.toFixed(1) }}</td>
+                          <td class="px-4 py-3">{{ d.status }}</td>
+                          <td class="px-4 py-3">{{ d.heater }}</td>
+                          <td class="px-4 py-3">{{ d.fan }}</td>
+                          <td class="px-4 py-3">{{ d.exhaust }}</td>
+                          <td class="px-4 py-3">
+                            <span
+                              v-if="
+                                !d.notifications || d.notifications.length === 0
+                              "
+                              class="text-gray-400"
+                              >-</span
+                            >
+                            <div v-else class="text-xs">
+                              <div v-for="(n, ni) in d.notifications" :key="ni">
+                                {{ n }}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="flex gap-4 mt-6">
+                  <button
+                    @click="downloadDetailPDF"
+                    class="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                  >
+                    Download PDF
+                  </button>
+                  <button
+                    @click="downloadRawJSON"
+                    class="flex-1 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                  >
+                    Download RAW
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -569,53 +732,112 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const dryerStore = useDryerStore();
-const selectedSession = ref("");
-const isLoading = ref(false);
 const isSidebarCollapsed = ref(true);
+const currentView = ref<"list" | "recap30" | "detail">("list");
+const selectedSessionId = ref("");
+const isLoading = ref(false);
+const sortOrder = ref<"newest" | "oldest">("newest");
 
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
 };
 
 const sessions = computed(() => {
-  const allSessions: Record<string, any> = {};
-  const rawSessions = dryerStore.sessions;
-
-  Object.keys(rawSessions).forEach((sessionId) => {
-    if (rawSessions[sessionId].info) {
-      allSessions[sessionId] = rawSessions[sessionId].info;
-    }
+  const all: Array<{ id: string; [key: string]: any }> = [];
+  const raw = dryerStore.sessions;
+  Object.keys(raw).forEach((id) => {
+    if (raw[id].info) all.push({ id, ...raw[id].info });
   });
+  return all;
+});
 
-  return allSessions;
+const sortedSessions = computed(() => {
+  const sorted = [...sessions.value];
+  sorted.sort((a, b) => {
+    const parse = (ts: string) => {
+      const [date, time] = ts.split(" ");
+      const [d, m, y] = date.split("/");
+      return new Date(`${y}-${m}-${d} ${time}`).getTime();
+    };
+    const ta = parse(a.start_time);
+    const tb = parse(b.start_time);
+    return sortOrder.value === "newest" ? tb - ta : ta - tb;
+  });
+  return sorted;
 });
 
 const currentSession = computed(() => {
-  if (!selectedSession.value) return null;
-  const session = sessions.value[selectedSession.value];
-  return session;
+  if (!selectedSessionId.value) return null;
+  return sessions.value.find((s) => s.id === selectedSessionId.value);
 });
 
 const sessionDataPoints = computed(() => {
-  if (!selectedSession.value) return [];
-
-  const rawData = dryerStore.currentSessionData;
-  if (!rawData || Object.keys(rawData).length === 0) return [];
-
-  return Object.values(rawData).sort((a: any, b: any) => {
-    const parseTimestamp = (ts: string) => {
+  if (!selectedSessionId.value) return [];
+  const raw = dryerStore.currentSessionData;
+  if (!raw || Object.keys(raw).length === 0) return [];
+  return Object.values(raw).sort((a: any, b: any) => {
+    const parse = (ts: string) => {
       const [date, time] = ts.split(" ");
-      const [day, month, year] = date.split("/");
-      return new Date(`${year}-${month}-${day} ${time}`).getTime();
+      const [d, m, y] = date.split("/");
+      return new Date(`${y}-${m}-${d} ${time}`).getTime();
     };
-
-    return parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp);
+    return parse(a.timestamp) - parse(b.timestamp);
   });
 });
 
-const dataPointsCount = computed(() => {
-  return sessionDataPoints.value.length;
+const recap30MinData = computed(() => {
+  if (sessionDataPoints.value.length === 0) return [];
+  const intervals: any[] = [];
+  const data = sessionDataPoints.value;
+  const parse = (ts: string) => {
+    const [date, time] = ts.split(" ");
+    const [d, m, y] = date.split("/");
+    const [h, min, s] = time.split(":");
+    return new Date(+y, +m - 1, +d, +h, +min, +s);
+  };
+  const start = parse(data[0].timestamp);
+  const end = parse(data[data.length - 1].timestamp);
+  const dur = end.getTime() - start.getTime();
+  const count = Math.ceil(dur / (30 * 60 * 1000));
+  for (let i = 0; i < count; i++) {
+    const is = new Date(start.getTime() + i * 30 * 60 * 1000);
+    const ie = new Date(start.getTime() + (i + 1) * 30 * 60 * 1000);
+    const id = data.filter((d: any) => {
+      const t = parse(d.timestamp);
+      return t >= is && t < ie;
+    });
+    if (id.length === 0) continue;
+    const avgT =
+      id.reduce((s: number, d: any) => s + d.temperature, 0) / id.length;
+    const avgH =
+      id.reduce((s: number, d: any) => s + d.humidity, 0) / id.length;
+    const avgM =
+      id.reduce((s: number, d: any) => s + d.moisture, 0) / id.length;
+    const errs: string[] = [];
+    id.forEach((d: any) => {
+      if (d.notifications)
+        d.notifications.forEach((n: string) => {
+          if (!errs.includes(n)) errs.push(n);
+        });
+    });
+    const fmt = (d: Date) => {
+      const h = d.getHours().toString().padStart(2, "0");
+      const m = d.getMinutes().toString().padStart(2, "0");
+      return `${h}:${m}`;
+    };
+    intervals.push({
+      timeRange: `${fmt(is)} - ${fmt(ie)}`,
+      avgTemp: avgT,
+      avgHumidity: avgH,
+      avgMoisture: avgM,
+      errors: errs,
+      dataCount: id.length,
+    });
+  }
+  return intervals;
 });
+
+const dataPointsCount = computed(() => sessionDataPoints.value.length);
 
 const totalNotifications = computed(() => {
   return sessionDataPoints.value.reduce((total: number, data: any) => {
@@ -625,163 +847,99 @@ const totalNotifications = computed(() => {
 
 const formatDateTime = (dateTime: string | undefined) => {
   if (!dateTime) return "-";
-
   const parts = dateTime.split(" ");
   if (parts.length === 2) {
     const [date, time] = parts;
     const [day, month, year] = date.split("/");
     const [hours, minutes] = time.split(":");
-
     if (window.innerWidth < 640) {
       return `${day}/${month} ${hours}:${minutes}`;
     }
-
     return dateTime;
   }
-
   return dateTime;
 };
 
-const loadSessionData = async () => {
-  if (selectedSession.value) {
-    isLoading.value = true;
-    try {
-      await dryerStore.fetchSessionData(selectedSession.value);
-    } catch (error) {
-      console.error("Error loading session data:", error);
-    } finally {
-      isLoading.value = false;
-    }
+const getSessionName = (s: any) => `${s.start_time} - ${s.status || "Unknown"}`;
+
+const viewRecap30Min = async (id: string) => {
+  selectedSessionId.value = id;
+  isLoading.value = true;
+  currentView.value = "recap30";
+  try {
+    await dryerStore.fetchSessionData(id);
+  } finally {
+    isLoading.value = false;
   }
 };
 
-const getStatusClass = (status: string) => {
-  const statusLower = status.toLowerCase();
-  if (statusLower.includes("selesai") || statusLower.includes("completed")) {
-    return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+const viewDetailData = async (id: string) => {
+  selectedSessionId.value = id;
+  isLoading.value = true;
+  currentView.value = "detail";
+  try {
+    await dryerStore.fetchSessionData(id);
+  } finally {
+    isLoading.value = false;
   }
-  if (statusLower.includes("berjalan") || statusLower.includes("running")) {
-    return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
-  }
-  if (statusLower.includes("paused") || statusLower.includes("pause")) {
-    return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
-  }
-  return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
 };
 
-const getNotificationColor = (notification: string): string => {
-  const notifLower = notification.toLowerCase();
-  if (notifLower.includes("error") || notifLower.includes("gagal")) {
-    return "text-red-700 dark:text-red-300 font-medium";
-  }
-  if (
-    notifLower.includes("warning") ||
-    notifLower.includes("peringatan") ||
-    notifLower.includes("pintu") ||
-    notifLower.includes("terbuka")
-  ) {
-    return "text-yellow-700 dark:text-yellow-300 font-medium";
-  }
-  if (notifLower.includes("proteksi") || notifLower.includes("suhu tinggi")) {
-    return "text-red-700 dark:text-red-300 font-medium";
-  }
-  if (
-    notifLower.includes("selesai") ||
-    notifLower.includes("completed") ||
-    notifLower.includes("success")
-  ) {
-    return "text-green-700 dark:text-green-300 font-medium";
-  }
-  return "text-gray-700 dark:text-gray-300";
+const backToList = () => {
+  currentView.value = "list";
+  selectedSessionId.value = "";
 };
 
-const downloadPDF = () => {
-  if (!currentSession.value || dataPointsCount.value === 0) return;
+const downloadRecapPDF = async (id: string) => {
+  await dryerStore.fetchSessionData(id);
+  const temp = selectedSessionId.value;
+  selectedSessionId.value = id;
+  await new Promise((r) => setTimeout(r, 100));
+  downloadRecap30PDF();
+  selectedSessionId.value = temp;
+};
 
+const downloadRecap30PDF = () => {
+  if (!currentSession.value || recap30MinData.value.length === 0) return;
   const doc = new jsPDF("landscape");
-
   doc.setFontSize(20);
-  doc.setFont("helvetica", "bold");
-  doc.text("LAPORAN PENGERINGAN CABAI", 148, 15, { align: "center" });
-
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "normal");
-
-  const infoY = 25;
-  doc.text(`Session ID: ${currentSession.value.session_id}`, 14, infoY);
-  doc.text(`Waktu Mulai: ${currentSession.value.start_time}`, 14, infoY + 6);
-  doc.text(
-    `Waktu Selesai: ${currentSession.value.end_time || "Sedang berjalan"}`,
-    14,
-    infoY + 12
-  );
-  doc.text(`Status: ${currentSession.value.status}`, 14, infoY + 18);
-  doc.text(
-    `Berat Awal: ${currentSession.value.initial_weight?.toFixed(2)} gram`,
-    14,
-    infoY + 24
-  );
-
-  if (currentSession.value.final_weight) {
-    doc.text(
-      `Berat Akhir: ${currentSession.value.final_weight.toFixed(2)} gram`,
-      14,
-      infoY + 30
-    );
-  }
-  if (currentSession.value.final_moisture) {
-    doc.text(
-      `Kadar Air Akhir: ${currentSession.value.final_moisture.toFixed(2)}%`,
-      14,
-      infoY + 36
-    );
-  }
-
-  const avgTemp =
-    sessionDataPoints.value.reduce(
-      (sum: number, d: any) => sum + d.temperature,
-      0
-    ) / dataPointsCount.value;
-  const avgHumidity =
-    sessionDataPoints.value.reduce(
-      (sum: number, d: any) => sum + d.humidity,
-      0
-    ) / dataPointsCount.value;
-
-  doc.setFont("helvetica", "bold");
-  doc.text("Rata-rata:", 14, infoY + 48);
-  doc.setFont("helvetica", "normal");
-  doc.text(
-    `Suhu: ${avgTemp.toFixed(1)}°C | Kelembapan: ${avgHumidity.toFixed(1)}%`,
-    14,
-    infoY + 54
-  );
-
-  doc.text(`Total Notifikasi: ${totalNotifications.value}`, 14, infoY + 60);
-
-  const tableData = sessionDataPoints.value.map((data: any, index: number) => {
-    const notifications =
-      data.notifications && data.notifications.length > 0
-        ? data.notifications.join("; ")
-        : "-";
-
-    return [
-      index + 1,
-      data.timestamp,
-      data.temperature.toFixed(1),
-      data.humidity.toFixed(1),
-      data.moisture.toFixed(1),
-      data.weight.toFixed(1),
-      data.status,
-      data.heater,
-      data.fan,
-      data.exhaust,
-      notifications,
-    ];
-  });
-
+  doc.text("REKAP 30 MENIT", 148, 15, { align: "center" });
+  const td = recap30MinData.value.map((v: any, i: number) => [
+    i + 1,
+    v.timeRange,
+    v.avgTemp.toFixed(1),
+    v.avgHumidity.toFixed(1),
+    v.avgMoisture.toFixed(1),
+    v.dataCount,
+    v.errors.length > 0 ? v.errors.join("; ") : "-",
+  ]);
   autoTable(doc, {
-    startY: infoY + 68,
+    startY: 25,
+    head: [["No", "Interval", "Suhu", "RH", "KA", "Data", "Error"]],
+    body: td,
+  });
+  doc.save(`rekap-30min-${selectedSessionId.value}.pdf`);
+};
+
+const downloadDetailPDF = () => {
+  if (!currentSession.value || sessionDataPoints.value.length === 0) return;
+  const doc = new jsPDF("landscape");
+  doc.setFontSize(20);
+  doc.text("DETAIL DATA", 148, 15, { align: "center" });
+  const td = sessionDataPoints.value.map((d: any, i: number) => [
+    i + 1,
+    d.timestamp,
+    d.temperature.toFixed(1),
+    d.humidity.toFixed(1),
+    d.moisture.toFixed(1),
+    d.weight.toFixed(1),
+    d.status,
+    d.heater,
+    d.fan,
+    d.exhaust,
+    d.notifications?.join("; ") || "-",
+  ]);
+  autoTable(doc, {
+    startY: 25,
     head: [
       [
         "No",
@@ -791,83 +949,55 @@ const downloadPDF = () => {
         "KA",
         "Berat",
         "Status",
-        "Heater",
-        "Fan",
-        "Exhaust",
-        "Keterangan",
+        "H",
+        "F",
+        "E",
+        "Ket",
       ],
     ],
-    body: tableData,
-    theme: "grid",
-    styles: {
-      fontSize: 7,
-      cellPadding: 2,
-    },
-    headStyles: {
-      fillColor: [220, 38, 38],
-      textColor: 255,
-      fontStyle: "bold",
-    },
-    alternateRowStyles: {
-      fillColor: [245, 245, 245],
-    },
-    columnStyles: {
-      0: { cellWidth: 10 },
-      1: { cellWidth: 30 },
-      2: { cellWidth: 15 },
-      3: { cellWidth: 15 },
-      4: { cellWidth: 15 },
-      5: { cellWidth: 18 },
-      6: { cellWidth: 20 },
-      7: { cellWidth: 18 },
-      8: { cellWidth: 18 },
-      9: { cellWidth: 20 },
-      10: { cellWidth: "auto" },
-    },
+    body: td,
+    styles: { fontSize: 7 },
   });
-
-  const pageCount = (doc as any).internal.getNumberOfPages();
-  doc.setFontSize(8);
-  doc.setTextColor(128);
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.text(
-      `Halaman ${i} dari ${pageCount}`,
-      148,
-      doc.internal.pageSize.height - 10,
-      { align: "center" }
-    );
-    doc.text(
-      `Generated: ${new Date().toLocaleString("id-ID")}`,
-      14,
-      doc.internal.pageSize.height - 10
-    );
-  }
-
-  const filename = `rekap-pengeringan-${selectedSession.value}.pdf`;
-  doc.save(filename);
+  doc.save(`detail-${selectedSessionId.value}.pdf`);
 };
 
-const deleteSession = async () => {
-  if (!selectedSession.value) return;
+const downloadRawJSON = () => {
+  if (!currentSession.value || sessionDataPoints.value.length === 0) return;
+  const raw = {
+    session: currentSession.value,
+    data: sessionDataPoints.value,
+    total: sessionDataPoints.value.length,
+    exported: new Date().toISOString(),
+  };
+  const str = JSON.stringify(raw, null, 2);
+  const blob = new Blob([str], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `raw-${selectedSessionId.value}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+};
 
-  const confirmed = confirm(
-    `Apakah Anda yakin ingin menghapus data session ini?\n\n` +
-      `Session ID: ${currentSession.value?.session_id}\n` +
-      `Total data: ${dataPointsCount.value} records\n` +
-      `Total notifikasi: ${totalNotifications.value}\n\n` +
-      `Data yang dihapus tidak dapat dikembalikan!`
+const deleteSession = async (id: string) => {
+  const s = sessions.value.find((x) => x.id === id);
+  if (!s) return;
+  const ok = confirm(
+    `Hapus session ini?\n\nSession: ${s.session_id}\nWaktu: ${s.start_time}\n\nData tidak dapat dikembalikan!`
   );
-
-  if (!confirmed) return;
-
+  if (!ok) return;
   try {
-    await remove(dbRef(database, `sessions/${selectedSession.value}`));
+    await remove(dbRef(database, `sessions/${id}`));
     alert("Data berhasil dihapus!");
-    selectedSession.value = "";
-  } catch (error) {
-    console.error("Error deleting session:", error);
-    alert("Gagal menghapus data. Silakan coba lagi.");
+    if (selectedSessionId.value === id) backToList();
+  } catch (e) {
+    console.error(e);
+    alert("Gagal menghapus data!");
   }
+};
+
+const deleteCurrentSession = async () => {
+  if (!selectedSessionId.value) return;
+  await deleteSession(selectedSessionId.value);
 };
 </script>

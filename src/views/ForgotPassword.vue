@@ -1,5 +1,3 @@
-// FILE: src/views/ForgotPassword.vue (NEW) //
-============================================
 <template>
   <div
     class="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-gray-100"

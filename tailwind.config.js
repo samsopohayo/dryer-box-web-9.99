@@ -1,5 +1,3 @@
-// FILE: tailwind.config.js (UPDATED with dark mode)
-// ============================================
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{vue,js,ts,jsx,tsx}"],
