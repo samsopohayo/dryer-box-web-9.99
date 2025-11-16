@@ -30,7 +30,7 @@
 
     <button
       @click="handleToggle"
-      :disabled="!isConnected || isAutoMode"
+      :disabled="!isConnected"
       class="w-full py-3 rounded-lg font-semibold transition-all duration-300 transform active:scale-95 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
       :class="buttonClass"
     >
@@ -45,29 +45,6 @@
         class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"
       ></div>
     </button>
-
-    <!-- Auto Mode Info -->
-    <div
-      v-if="isAutoMode && isConnected"
-      class="mt-3 p-2 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg flex items-center gap-2"
-    >
-      <svg
-        class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-        />
-      </svg>
-      <span class="text-xs text-blue-700 dark:text-blue-300">
-        Mode AUTO - Dikontrol oleh sistem
-      </span>
-    </div>
 
     <!-- Connection Warning -->
     <div
@@ -108,7 +85,6 @@ import { useDryerStore } from "@/stores/dryer";
 const props = defineProps<{
   title: string;
   device: "heater" | "fan_collector" | "fan_panel" | "exhaust";
-  deviceInfo: string;
 }>();
 
 const emit = defineEmits<{
@@ -116,11 +92,6 @@ const emit = defineEmits<{
 }>();
 
 const dryerStore = useDryerStore();
-
-// Check if system is in AUTO mode
-const isAutoMode = computed(() => {
-  return dryerStore.controlData.mode === "auto";
-});
 
 // Check if system is connected (last update within 1 minute)
 const isConnected = computed(() => {
@@ -182,10 +153,6 @@ const buttonClass = computed(() => {
     return "bg-gray-400 text-white cursor-not-allowed";
   }
 
-  if (isAutoMode.value) {
-    return "bg-gray-400 text-white cursor-not-allowed";
-  }
-
   return isOn.value
     ? "bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-500/50 dark:shadow-red-900/50"
     : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 dark:shadow-blue-900/50";
@@ -193,7 +160,6 @@ const buttonClass = computed(() => {
 
 const buttonText = computed(() => {
   if (!isConnected.value) return "Tidak Tersedia";
-  if (isAutoMode.value) return "Mode AUTO Aktif";
   return isOn.value ? "Matikan" : "Hidupkan";
 });
 
@@ -321,27 +287,6 @@ const deviceIcon = computed(() => {
 
 // Button icon
 const buttonIcon = computed(() => {
-  if (isAutoMode.value) {
-    // Auto mode icon
-    return h(
-      "svg",
-      {
-        fill: "none",
-        stroke: "currentColor",
-        viewBox: "0 0 24 24",
-        class: "w-5 h-5",
-      },
-      [
-        h("path", {
-          "stroke-linecap": "round",
-          "stroke-linejoin": "round",
-          "stroke-width": "2",
-          d: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z",
-        }),
-      ]
-    );
-  }
-
   if (isOn.value) {
     // Power off icon
     return h(
@@ -384,7 +329,7 @@ const buttonIcon = computed(() => {
 });
 
 const handleToggle = () => {
-  if (!isConnected.value || isAutoMode.value) return;
+  if (!isConnected.value) return;
   emit("toggle");
 };
 </script>
