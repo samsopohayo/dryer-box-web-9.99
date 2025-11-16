@@ -1,12 +1,3 @@
-/*
- * Dryer Box Control System - FULL REFACTORED
- * Original: 2552 lines (all features preserved)
- * Changes: PWM/Servo logic from Kode Pertama (ledcAttach for v3.3.3 compatibility)
- * No PWM conflict: ledcAttach auto-assigns channels
- * No Serial control added
- * Board: ESP32 Dev Module v3.3.3
- */
-
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
@@ -26,23 +17,23 @@
 #define WIFI_PASSWORD "1234567899"
 
 //=============================================================================== Pin Definitions ===============================================================================
-#define DHT_PIN 4 // Sensor DHT
-#define DOUT_PIN 14 // Sensor loadcell
-#define SCK_PIN 12 // Sensor loadcell
-#define TARE_SWITCH 32 // TARE button
-#define START_SWITCH 33 // START button
-#define INFO_SWITCH 35 // INFO button
+#define DHT_PIN 4         // Sensor DHT
+#define DOUT_PIN 14       // Sensor loadcell
+#define SCK_PIN 12        // Sensor loadcell
+#define TARE_SWITCH 32    // TARE button
+#define START_SWITCH 33   // START button
+#define INFO_SWITCH 35    // INFO button
 #define RESTART_SWITCH 27 // RESTART button
-#define DOOR_SWITCH 23 // Door switch
-#define FANHEATPAN1 26 // Kipas heater panel 1
-#define FANHEATCOL2 25 // Kipas heater colector 2 (controlled by weather)
-#define MOSFET1_PIN 16 // Kipas exhaust
-#define MOSFET2_PIN 15 // Steam pusher (active on RUNNING & OVERHEAT)
-#define RELAY1_PIN 17 // Heater Hangat
-#define RELAY2_PIN 5 // Heater Panas
-#define SERVO_PIN 19 // Exhaust valve
-#define SDA_PIN 21 // I2C LCD SDA
-#define SCL_PIN 22 // I2C LCD SCL
+#define DOOR_SWITCH 23    // Door switch
+#define FANHEATPAN1 26    // Kipas heater panel 1
+#define FANHEATCOL2 25    // Kipas heater colector 2 (controlled by weather)
+#define MOSFET1_PIN 16    // Kipas exhaust
+#define MOSFET2_PIN 15    // Steam pusher (active on RUNNING & OVERHEAT)
+#define RELAY1_PIN 17     // Heater Hangat
+#define RELAY2_PIN 5      // Heater Panas
+#define SERVO_PIN 19      // Exhaust valve
+#define SDA_PIN 21        // I2C LCD SDA
+#define SCL_PIN 22        // I2C LCD SCL
 
 //=============================================================================== System Configuration ===============================================================================
 #define DHTTYPE DHT22
@@ -52,6 +43,8 @@
 #define INFO_DISPLAY_TIMEOUT 10000
 #define HUMIDITY_HYSTERESIS 2.0
 #define TEMPERATURE_HYSTERESIS 2.0
+#define WEIGHT_FILTER_SIZE 10
+#define MEDIAN_SAMPLES 5
 
 //=============================================================================== PWM & Servo Configuration (FROM KODE PERTAMA - COMPAT v3.3.3) ===============================================================================
 #define PWM_FREQ 25000
@@ -130,8 +123,8 @@ bool stabilizing = false;
 bool systemRunning = false;
 
 // Control Mode Variables
-bool isAutoMode = true; // true = AUTO, false = MANUAL
-bool manualModeActive = false; // Manual mode activated by user
+bool isAutoMode = true;
+bool manualModeActive = false;
 
 // Status Kontrol & Proteksi
 bool humidityControlActive = false;
@@ -144,13 +137,27 @@ String kipasStatus = "Mati";
 String pemanasStatus = "Mati";
 
 // Data Sensor
+bool doorOpen = false;
 float beratAwal = 0;
 float beratSekarang = 0;
-bool doorOpen = false;
 float kadarAir = 0;
 float kelembapanSensor = 0;
 float lastWeight = 0;
 float suhuSensor = 0;
+
+// Stabilisation moisture
+float weightReadings[WEIGHT_FILTER_SIZE];
+int weightReadingIndex = 0;
+float weightSum = 0;
+bool weightFilterInitialized = false;
+
+float kalman_kadarAir = 0;
+float kalman_P = 1;
+float kalman_Q = 0.01;
+float kalman_R = 0.5;
+
+float medianBuffer[MEDIAN_SAMPLES];
+int medianIndex = 0;
 
 // Manual Control Variables
 bool manualExhaustControl = false;
@@ -170,11 +177,18 @@ bool timerPaused = false;
 unsigned long lastTimerUpdate = 0;
 
 // System States
-enum SystemState { WAIT_TARE, WAIT_OBJECT, WAIT_START, RUNNING };
+enum SystemState
+{
+  WAIT_TARE,
+  WAIT_OBJECT,
+  WAIT_START,
+  RUNNING
+};
 SystemState currentState = WAIT_TARE;
 
 // Error System
-struct SystemError {
+struct SystemError
+{
   String code;
   String message;
   bool active;
@@ -185,13 +199,23 @@ int errorCount = 0;
 bool hasActiveErrors = false;
 
 // Info Display System
-enum InfoDisplayMode { INFO_DEFAULT, INFO_SENSORS, INFO_WEIGHTS, INFO_WIFI, INFO_HUMADITY, INFO_TEMP, INFO_HISTORY };
+enum InfoDisplayMode
+{
+  INFO_DEFAULT,
+  INFO_SENSORS,
+  INFO_WEIGHTS,
+  INFO_WIFI,
+  INFO_HUMADITY,
+  INFO_TEMP,
+  INFO_HISTORY
+};
 InfoDisplayMode currentInfoMode = INFO_DEFAULT;
 bool infoDisplayActive = false;
 unsigned long infoDisplayStart = 0;
 
 // SPIFFS Buffer (Offline Storage)
-struct DataPoint {
+struct DataPoint
+{
   String timestamp;
   float temperature;
   float humidity;
@@ -206,7 +230,8 @@ std::vector<DataPoint> offlineBuffer;
 bool offlineMode = false;
 
 // Button State Variables
-struct ButtonState {
+struct ButtonState
+{
   bool currentPressed;
   bool lastPressed;
   unsigned long lastPressTime;
@@ -246,6 +271,7 @@ void turnOffAllOutputs();
 
 // Pembacaan Sensor & Pemrosesan Data
 void calculateMoistureContent();
+void sortArray();
 void checkObjectWeight();
 void readSensors();
 void saveDataPoint();
@@ -319,33 +345,39 @@ void testDHTSensor();
 void testLoadCell();
 
 //=============================================================================== Utility ===============================================================================
-String getTimestamp() {
+String getTimestamp()
+{
   time_t now = time(nullptr);
-  struct tm* ptm = localtime(&now);
+  struct tm *ptm = localtime(&now);
   char buffer[20];
   sprintf(buffer, "%02d/%02d/%04d %02d:%02d:%02d", ptm->tm_mday, ptm->tm_mon + 1, ptm->tm_year + 1900, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
   return String(buffer);
 }
 
-String generateSessionId() {
+String generateSessionId()
+{
   time_t now = time(nullptr);
-  struct tm* ptm = localtime(&now);
+  struct tm *ptm = localtime(&now);
   char buffer[16];
   sprintf(buffer, "%04d%02d%02d_%02d%02d%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
   return String(buffer);
 }
 
 //=============================================================================== Setup Function ===============================================================================
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   Serial.println("\n🚀 SISTEM PENGERING ESP32 v4.0 (SERVO FIXED)");
   Serial.println("===================================");
   Serial.println("Initializing enhanced system with PWM channel isolation");
 
   // Initialize SPIFFS first
-  if (!SPIFFS.begin(true)) {
+  if (!SPIFFS.begin(true))
+  {
     Serial.println("❌ SPIFFS initialization failed!");
-  } else {
+  }
+  else
+  {
     Serial.println("✅ SPIFFS initialized successfully");
   }
 
@@ -356,13 +388,14 @@ void setup() {
   Serial.println("✅ LCD 16x2 initialized with boot message");
 
   // Initialize all error entries
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 10; i++)
+  {
     systemErrors[i].active = false;
   }
 
   // === PWM KIPAS - LOGIKA DARI KODE PERTAMA (ledcAttach for v3.3.3) ===
-  ledcAttach(FANHEATPAN1, PWM_FREQ, PWM_RESOLUTION);  // Fan Panel - auto channel
-  ledcAttach(FANHEATCOL2, PWM_FREQ, PWM_RESOLUTION);  // Fan Collector - auto channel
+  ledcAttach(FANHEATPAN1, PWM_FREQ, PWM_RESOLUTION); // Fan Panel - auto channel
+  ledcAttach(FANHEATCOL2, PWM_FREQ, PWM_RESOLUTION); // Fan Collector - auto channel
   Serial.println("✅ PWM channels configured (auto-assign):");
   Serial.println(" Fan Panel: Pin 26 @ 25kHz, 8-bit");
   Serial.println(" Fan Collector: Pin 25 @ 25kHz, 8-bit");
@@ -396,8 +429,8 @@ void setup() {
   testLoadCell();
 
   // Initialize servo with explicit PWM configuration (FROM KODE PERTAMA)
-  ESP32PWM::allocateTimer(SERVO_TIMER); // Use timer 2 for servo
-  exhaustServo.setPeriodHertz(50); // Standard servo frequency
+  ESP32PWM::allocateTimer(SERVO_TIMER);      // Use timer 2 for servo
+  exhaustServo.setPeriodHertz(50);           // Standard servo frequency
   exhaustServo.attach(SERVO_PIN, 500, 2400); // Attach with pulse width range
   exhaustServo.write(0);
   delay(500); // Give servo time to reach position
@@ -436,6 +469,19 @@ void setup() {
   // Send system ready status to Firebase
   sendSystemStatus("ready");
 
+  // Initialize filters
+  for (int i = 0; i < WEIGHT_FILTER_SIZE; i++)
+  {
+    weightReadings[i] = 0;
+  }
+  for (int i = 0; i < MEDIAN_SAMPLES; i++)
+  {
+    medianBuffer[i] = 0;
+  }
+  Serial.println("✅ Weight filters initialized");
+  Serial.println(" - Moving Average: " + String(WEIGHT_FILTER_SIZE) + " samples");
+  Serial.println(" - Median Filter: " + String(MEDIAN_SAMPLES) + " samples");
+  Serial.println(" - Kalman Filter: Q=" + String(kalman_Q) + " R=" + String(kalman_R));
   Serial.println("🚀 ENHANCED SYSTEM READY!");
   Serial.println("💡 PRESS RESTART BUTTON TO RESTART SYSTEM");
   Serial.println("💡 DEFAULT MODE: AUTO");
@@ -443,7 +489,8 @@ void setup() {
 }
 
 //=============================================================================== Loop Function ===============================================================================
-void loop() {
+void loop()
+{
   // Handle all button inputs
   handleButtonInputs();
 
@@ -451,7 +498,8 @@ void loop() {
   checkControlMode();
 
   // Check timer updates
-  if (timerEnabled && !timerPaused && systemRunning) {
+  if (timerEnabled && !timerPaused && systemRunning)
+  {
     updateTimer();
   }
 
@@ -462,18 +510,21 @@ void loop() {
   checkTemperatureProtection();
 
   // Check weather data
-  if (millis() - lastWeatherUpdate > weatherInterval) {
+  if (millis() - lastWeatherUpdate > weatherInterval)
+  {
     fetchWeatherData();
     lastWeatherUpdate = millis();
   }
 
   // Check humidity control (only in AUTO mode)
-  if (isAutoMode) {
+  if (isAutoMode)
+  {
     checkHumidityControl();
   }
 
   // Check Temperature control (only in AUTO mode)
-  if (isAutoMode) {
+  if (isAutoMode)
+  {
     checkTemperatureControl();
   }
 
@@ -481,32 +532,36 @@ void loop() {
   handleInfoDisplayTimeout();
 
   // Main state machine
-  switch (currentState) {
-    case WAIT_TARE:
-      break;
-    case WAIT_OBJECT:
-      checkObjectWeight();
-      break;
-    case WAIT_START:
-      break;
-    case RUNNING:
-      if (systemRunning) {
-        runDryingProcess();
-        delay(15000); // 15 second cycle
-      }
-      break;
+  switch (currentState)
+  {
+  case WAIT_TARE:
+    break;
+  case WAIT_OBJECT:
+    checkObjectWeight();
+    break;
+  case WAIT_START:
+    break;
+  case RUNNING:
+    if (systemRunning)
+    {
+      runDryingProcess();
+      delay(15000); // 15 second cycle
+    }
+    break;
   }
 
   // Update display based on current mode
   updateDisplay();
 
   // Sync offline data if WiFi reconnected
-  if (WiFi.status() == WL_CONNECTED && offlineMode) {
+  if (WiFi.status() == WL_CONNECTED && offlineMode)
+  {
     syncOfflineData();
   }
 
   // Sync nilai target dan control mode
-  if (millis() - lastConfigCheck > 5000) {
+  if (millis() - lastConfigCheck > 5000)
+  {
     listenConfigUpdates();
     lastConfigCheck = millis();
   }
@@ -515,17 +570,20 @@ void loop() {
 }
 
 //=============================================================================== Enhanced Button Handling ===============================================================================
-void handleButtonInputs() {
+void handleButtonInputs()
+{
   handleTareButton();
   handleStartButton();
   handleInfoButton();
   handleRestartButton();
 }
 
-void handleTareButton() {
+void handleTareButton()
+{
   bool currentReading = (digitalRead(TARE_SWITCH) == LOW);
   unsigned long currentTime = millis();
-  if (currentReading && !tareButton.lastPressed && (currentTime - tareButton.lastPressTime) > 50) { // Debounce
+  if (currentReading && !tareButton.lastPressed && (currentTime - tareButton.lastPressTime) > 50)
+  { // Debounce
     tareButton.lastPressTime = currentTime;
     Serial.println("🔘 TARE button pressed");
     performTare();
@@ -533,15 +591,20 @@ void handleTareButton() {
   tareButton.lastPressed = currentReading;
 }
 
-void handleStartButton() {
+void handleStartButton()
+{
   bool currentReading = (digitalRead(START_SWITCH) == LOW);
   unsigned long currentTime = millis();
-  if (currentReading && !startButton.lastPressed && (currentTime - startButton.lastPressTime) > 50) {
+  if (currentReading && !startButton.lastPressed && (currentTime - startButton.lastPressTime) > 50)
+  {
     startButton.lastPressTime = currentTime;
     Serial.println("🔘 START button pressed");
-    if (currentState == WAIT_START) {
+    if (currentState == WAIT_START)
+    {
       startDryingProcess();
-    } else {
+    }
+    else
+    {
       Serial.println(" START ignored - system not ready");
       lcd.clear();
       lcd.setCursor(0, 0);
@@ -554,25 +617,32 @@ void handleStartButton() {
   startButton.lastPressed = currentReading;
 }
 
-void handleInfoButton() {
+void handleInfoButton()
+{
   bool currentReading = (digitalRead(INFO_SWITCH) == LOW);
   unsigned long currentTime = millis();
-  if (currentReading && !infoButton.lastPressed && (currentTime - infoButton.lastPressTime) > 50) {
+  if (currentReading && !infoButton.lastPressed && (currentTime - infoButton.lastPressTime) > 50)
+  {
     infoButton.lastPressTime = currentTime;
     Serial.println("🔘 INFO button pressed");
-    if (!hasActiveErrors) {
+    if (!hasActiveErrors)
+    {
       cycleInfoDisplay();
-    } else {
+    }
+    else
+    {
       Serial.println(" INFO ignored - system has active errors");
     }
   }
   infoButton.lastPressed = currentReading;
 }
 
-void handleRestartButton() {
+void handleRestartButton()
+{
   bool currentReading = (digitalRead(RESTART_SWITCH) == LOW);
   unsigned long currentTime = millis();
-  if (currentReading && !restartButton.lastPressed && (currentTime - restartButton.lastPressTime) > 50) {
+  if (currentReading && !restartButton.lastPressed && (currentTime - restartButton.lastPressTime) > 50)
+  {
     restartButton.lastPressTime = currentTime;
     Serial.println("🔘 RESTART button pressed");
     restartSystem();
@@ -581,7 +651,8 @@ void handleRestartButton() {
 }
 
 //=============================================================================== RESTART SYSTEM ===============================================================================
-void restartSystem() {
+void restartSystem()
+{
   Serial.println("\n=== RESTART SYSTEM INITIATED ===");
   Serial.println("Restart triggered by RESTART button");
   lcd.clear();
@@ -643,29 +714,39 @@ void restartSystem() {
 }
 
 //=============================================================================== CONTROL MODE MANAGEMENT ===============================================================================
-void checkControlMode() {
+void checkControlMode()
+{
   static unsigned long lastModeCheck = 0;
-  if (millis() - lastModeCheck < 2000) return;
+  if (millis() - lastModeCheck < 2000)
+    return;
   lastModeCheck = millis();
-  if (WiFi.status() != WL_CONNECTED) return;
-  if (Firebase.getBool(firebaseData, "/control/auto_mode")) {
+  if (WiFi.status() != WL_CONNECTED)
+    return;
+  if (Firebase.getBool(firebaseData, "/control/auto_mode"))
+  {
     bool autoMode = firebaseData.boolData();
-    if (autoMode != isAutoMode) {
+    if (autoMode != isAutoMode)
+    {
       isAutoMode = autoMode;
-      if (isAutoMode) {
+      if (isAutoMode)
+      {
         switchToAutoMode();
-      } else {
+      }
+      else
+      {
         switchToManualMode();
       }
     }
   }
   delay(50);
-  if (!isAutoMode) {
+  if (!isAutoMode)
+  {
     checkManualControls();
   }
 }
 
-void switchToAutoMode() {
+void switchToAutoMode()
+{
   Serial.println("\n🔄 === SWITCHING TO AUTO MODE ===");
   isAutoMode = true;
   manualModeActive = false;
@@ -673,7 +754,8 @@ void switchToAutoMode() {
   manualFanColControl = false;
   manualFanPanControl = false;
   manualExhaustControl = false;
-  if (timerEnabled) {
+  if (timerEnabled)
+  {
     timerEnabled = false;
     timerPaused = false;
     syncTimerToFirebase();
@@ -692,7 +774,8 @@ void switchToAutoMode() {
   delay(2000);
 }
 
-void switchToManualMode() {
+void switchToManualMode()
+{
   Serial.println("\n🔄 === SWITCHING TO MANUAL MODE ===");
   isAutoMode = false;
   manualModeActive = true;
@@ -707,16 +790,21 @@ void switchToManualMode() {
 }
 
 //=============================================================================== TIMER FUNCTIONS ===============================================================================
-void updateTimer() {
+void updateTimer()
+{
   unsigned long currentTime = millis();
-  if (currentTime - lastTimerUpdate >= 1000) {
+  if (currentTime - lastTimerUpdate >= 1000)
+  {
     lastTimerUpdate = currentTime;
-    if (timerRemaining > 0) {
+    if (timerRemaining > 0)
+    {
       timerRemaining--;
-      if (timerRemaining % 5 == 0) {
+      if (timerRemaining % 5 == 0)
+      {
         syncTimerToFirebase();
       }
-      if (timerRemaining == 0) {
+      if (timerRemaining == 0)
+      {
         Serial.println("⏰ Timer completed!");
         timerEnabled = false;
         timerPaused = false;
@@ -730,8 +818,10 @@ void updateTimer() {
   }
 }
 
-void syncTimerToFirebase() {
-  if (WiFi.status() != WL_CONNECTED) return;
+void syncTimerToFirebase()
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return;
   Firebase.setBool(firebaseData, "/timer/enabled", timerEnabled);
   delay(50);
   Firebase.setInt(firebaseData, "/timer/duration", timerDuration);
@@ -743,12 +833,17 @@ void syncTimerToFirebase() {
   Serial.println(" Remaining: " + String(timerRemaining) + "s");
 }
 
-void checkTimerFromFirebase() {
-  if (WiFi.status() != WL_CONNECTED) return;
-  if (Firebase.getBool(firebaseData, "/timer/enabled")) {
+void checkTimerFromFirebase()
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return;
+  if (Firebase.getBool(firebaseData, "/timer/enabled"))
+  {
     bool newEnabled = firebaseData.boolData();
-    if (newEnabled && !timerEnabled) {
-      if (Firebase.getInt(firebaseData, "/timer/remaining")) {
+    if (newEnabled && !timerEnabled)
+    {
+      if (Firebase.getInt(firebaseData, "/timer/remaining"))
+      {
         timerRemaining = firebaseData.intData();
         timerDuration = timerRemaining;
         timerEnabled = true;
@@ -756,7 +851,9 @@ void checkTimerFromFirebase() {
         lastTimerUpdate = millis();
         Serial.println("⏱️ Timer started from web: " + String(timerRemaining) + "s");
       }
-    } else if (!newEnabled && timerEnabled) {
+    }
+    else if (!newEnabled && timerEnabled)
+    {
       timerEnabled = false;
       timerPaused = false;
       timerRemaining = 0;
@@ -766,7 +863,8 @@ void checkTimerFromFirebase() {
 }
 
 //=============================================================================== MAIN LOGIC SISTEM ===============================================================================
-void performTare() {
+void performTare()
+{
   Serial.println("\n⚖ === PERFORMING TARE OPERATION ===");
   clearError("SCALE_NOT_READY");
   clearError("TARE_FAILED");
@@ -775,7 +873,8 @@ void performTare() {
   lcd.print("Melakukan TARE..");
   lcd.setCursor(0, 1);
   lcd.print("Mohon tunggu...");
-  if (!scale.is_ready()) {
+  if (!scale.is_ready())
+  {
     addError("SCALE_NOT_READY", "Scale not ready!");
     Serial.println("❌ Scale not ready for tare!");
     return;
@@ -784,7 +883,8 @@ void performTare() {
   scale.tare(20);
   delay(2000);
   float testReading = scale.get_units(3);
-  if (abs(testReading) < 5.0) {
+  if (abs(testReading) < 5.0)
+  {
     Serial.println("✅ Tare completed successfully");
     Serial.println(" Scale reading after tare: " + String(testReading, 2) + " gram");
     currentState = WAIT_OBJECT;
@@ -796,26 +896,36 @@ void performTare() {
     lcd.print("Masukkan objek");
     delay(2000);
     sendSystemStatus("tare_completed");
-  } else {
+  }
+  else
+  {
     addError("TARE_FAILED", "Tare verification failed: " + String(testReading, 2) + "g");
     Serial.println("⚠ Tare verification failed");
   }
 }
 
-void checkObjectWeight() {
-  if (!scale.is_ready()) {
+void checkObjectWeight()
+{
+  if (!scale.is_ready())
+  {
     addError("SCALE_NOT_READY", "Scale not ready");
     return;
   }
   clearError("SCALE_NOT_READY");
   float weight = scale.get_units(5);
-  if (weight > 5.0) {
-    if (abs(weight - lastWeight) <= 7.0) {
-      if (!stabilizing) {
+  if (weight > 5.0)
+  {
+    if (abs(weight - lastWeight) <= 5.0)
+    {
+      if (!stabilizing)
+      {
         stabilizing = true;
         stableStartTime = millis();
-      } else {
-        if (millis() - stableStartTime >= 4000) {
+      }
+      else
+      {
+        if (millis() - stableStartTime >= 4000)
+        {
           beratAwal = weight;
           Serial.println("📦 Object detected");
           Serial.println("📦 Initial weight: " + String(beratAwal, 1) + " gram");
@@ -826,21 +936,26 @@ void checkObjectWeight() {
           lcd.print("OBJEK TERDETEKSI");
           lcd.setCursor(0, 1);
           lcd.print("Berat:" + String(beratAwal, 0) + "g");
-          delay(2000);
+          delay(1000);
           Firebase.setFloat(firebaseData, "/sensor/berat_awal", beratAwal);
           stabilizing = false;
         }
       }
-    } else {
+    }
+    else
+    {
       stabilizing = false;
     }
-  } else {
+  }
+  else
+  {
     stabilizing = false;
   }
   lastWeight = weight;
 }
 
-void startDryingProcess() {
+void startDryingProcess()
+{
   Serial.println("\n🚀 === STARTING DRYING PROCESS ===");
   sessionId = generateSessionId();
   Serial.println(" Session ID: " + sessionId);
@@ -859,14 +974,32 @@ void startDryingProcess() {
   Serial.println("✅ Drying process started successfully!");
 }
 
-void runDryingProcess() {
+void runDryingProcess()
+{
+  static unsigned long lastRecalibration = 0;
+  static int cycleCount = 0;
+
   Serial.println("\n📊 === READING SENSORS ===");
   readSensors();
   calculateMoistureContent();
+  cycleCount++;
+  if (cycleCount >= 20)
+  {
+    cycleCount = 0;
+    if (millis() - lastRecalibration > 300000)
+    { // 5 menit
+      Serial.println("🔄 Periodic recalibration triggered");
+      recalibrateScale();
+      lastRecalibration = millis();
+    }
+  }
   checkProcessCompletion();
-  if (processStatus == "Berjalan" && !tempProtectionActive && !doorOpen) {
+  if (processStatus == "Berjalan" && !tempProtectionActive && !doorOpen)
+  {
     applyControls();
-  } else {
+  }
+  else
+  {
     turnOffAllOutputs();
   }
   saveDataPoint();
@@ -875,23 +1008,28 @@ void runDryingProcess() {
   Serial.println("=====================================");
 }
 
-void handleInfoDisplayTimeout() {
-  if (infoDisplayActive && (millis() - infoDisplayStart > INFO_DISPLAY_TIMEOUT)) {
+void handleInfoDisplayTimeout()
+{
+  if (infoDisplayActive && (millis() - infoDisplayStart > INFO_DISPLAY_TIMEOUT))
+  {
     infoDisplayActive = false;
     currentInfoMode = INFO_DEFAULT;
     Serial.println("ℹ Info display timeout - returning to default");
   }
 }
 
-void checkProcessCompletion() {
-  if (kadarAir <= targetMoisture && processStatus == "Berjalan") {
+void checkProcessCompletion()
+{
+  if (kadarAir <= targetMoisture && processStatus == "Berjalan")
+  {
     Serial.println("🎉 Drying process completed!");
     Serial.println(" Target moisture reached: " + String(kadarAir, 1) + "%");
     processStatus = "Selesai";
     systemRunning = false;
     humidityControlActive = false;
     temperatureControlActive = false;
-    if (timerEnabled) {
+    if (timerEnabled)
+    {
       timerEnabled = false;
       timerPaused = false;
       syncTimerToFirebase();
@@ -907,66 +1045,118 @@ void checkProcessCompletion() {
 }
 
 //=============================================================================== READ SENSOR ===============================================================================
-void readSensors() {
+void readSensors()
+{
   suhuSensor = dht.readTemperature();
   kelembapanSensor = dht.readHumidity();
-  if (isnan(suhuSensor)) {
+  if (isnan(suhuSensor))
+  {
     addError("DHT22_TEMP_FAILED", "Temperature sensor error");
     suhuSensor = 0;
-  } else {
+  }
+  else
+  {
     clearError("DHT22_TEMP_FAILED");
     Serial.println("✅ DHT22 temperature: " + String(suhuSensor, 1) + "°C");
-    if (suhuSensor > targetTemperatureMax) {
+    if (suhuSensor > targetTemperatureMax)
+    {
       Serial.println(" ⚠ Temperature TINGGI - Control akan aktif");
-    } else if (suhuSensor < targetTemperatureMin) {
+    }
+    else if (suhuSensor < targetTemperatureMin)
+    {
       Serial.println(" ⚠ Temperature RENDAH - Heating aktif");
-    } else {
+    }
+    else
+    {
       Serial.println(" ✅ Temperature IDEAL - dalam range target");
     }
   }
-  if (isnan(kelembapanSensor)) {
+  if (isnan(kelembapanSensor))
+  {
     addError("DHT22_HUMID_FAILED", "Humidity sensor error");
     kelembapanSensor = 0;
-  } else {
+  }
+  else
+  {
     clearError("DHT22_HUMID_FAILED");
     Serial.println("✅ DHT22 humidity: " + String(kelembapanSensor, 1) + "%");
-    if (kelembapanSensor > targetHumidityMax) {
+    if (kelembapanSensor > targetHumidityMax)
+    {
       Serial.println(" ⚠ Humidity TINGGI - Exhaust akan aktif");
-    } else if (kelembapanSensor < targetHumidityMin) {
+    }
+    else if (kelembapanSensor < targetHumidityMin)
+    {
       Serial.println(" ⚠ Humidity RENDAH - Exhaust akan mati");
-    } else {
+    }
+    else
+    {
       Serial.println(" ✅ Humidity IDEAL - dalam range target");
     }
   }
-  if (!scale.is_ready()) {
+  if (!scale.is_ready())
+  {
     addError("SCALE_NOT_READY", "Load cell not ready");
     beratSekarang = beratAwal;
-  } else {
+  }
+  else
+  {
     clearError("SCALE_NOT_READY");
-    beratSekarang = scale.get_units(5);
+
+    // STEP 1: Baca raw value dengan averaging lebih banyak
+    float rawWeight = scale.get_units(20); // Naikkan dari 5 ke 20 samples
+    Serial.println("📊 Raw weight: " + String(rawWeight, 2) + "g");
+
+    // STEP 2: Median filter untuk buang outliers
+    float medianWeight = medianFilter(rawWeight);
+    Serial.println("📊 Median filtered: " + String(medianWeight, 2) + "g");
+
+    // STEP 3: Moving average untuk smoothing
+    float smoothWeight = movingAverageFilter(medianWeight);
+    Serial.println("📊 Moving avg: " + String(smoothWeight, 2) + "g");
+
+    // STEP 4: Validasi perubahan tidak terlalu ekstrem
+    if (abs(smoothWeight - beratSekarang) > 50 && beratSekarang > 0)
+    {
+      // Perubahan > 50g dalam 15 detik = kemungkinan noise
+      Serial.println("⚠️  Excessive weight change detected - using previous value");
+      // Gunakan nilai sebelumnya dengan sedikit adjustmen
+      beratSekarang = beratSekarang * 0.9 + smoothWeight * 0.1;
+    }
+    else
+    {
+      beratSekarang = smoothWeight;
+    }
     Serial.println("✅ HX711 weight: " + String(beratSekarang, 1) + " gram");
   }
 }
 
 //=============================================================================== ADDITIONAL CONTROL FUNCTION ===============================================================================
-void checkHumidityControl() {
-  if (!systemRunning || tempProtectionActive || doorOpen) {
+void checkHumidityControl()
+{
+  if (!systemRunning || tempProtectionActive || doorOpen)
+  {
     humidityControlActive = false;
     return;
   }
-  if (isnan(kelembapanSensor)) {
+  if (isnan(kelembapanSensor))
+  {
     humidityControlActive = false;
     return;
   }
-  if (kelembapanSensor > (targetHumidityMax + HUMIDITY_HYSTERESIS)) {
-    if (!humidityControlActive) {
+  if (kelembapanSensor > (targetHumidityMax + HUMIDITY_HYSTERESIS))
+  {
+    if (!humidityControlActive)
+    {
       humidityControlActive = true;
       Serial.println("🌡 HUMIDITY CONTROL ACTIVATED!");
       Serial.println(" Current: " + String(kelembapanSensor, 1) + "% > Target: " + String(targetHumidityMax, 1) + "%");
     }
     controlExhaustHumidity(kelembapanSensor);
-  } else if (kelembapanSensor < (targetHumidityMin - HUMIDITY_HYSTERESIS)) {
-    if (humidityControlActive) {
+  }
+  else if (kelembapanSensor < (targetHumidityMin - HUMIDITY_HYSTERESIS))
+  {
+    if (humidityControlActive)
+    {
       humidityControlActive = false;
       Serial.println("🌡 HUMIDITY CONTROL DEACTIVATED!");
       Serial.println(" Current: " + String(kelembapanSensor, 1) + "% < Target: " + String(targetHumidityMin, 1) + "%");
@@ -974,8 +1164,11 @@ void checkHumidityControl() {
       exhaustServo.write(0);
       exhaustStatus = "Tutup";
     }
-  } else if (kelembapanSensor >= targetHumidityMin && kelembapanSensor <= targetHumidityMax) {
-    if (humidityControlActive) {
+  }
+  else if (kelembapanSensor >= targetHumidityMin && kelembapanSensor <= targetHumidityMax)
+  {
+    if (humidityControlActive)
+    {
       humidityControlActive = false;
       Serial.println("🌡 HUMIDITY IN IDEAL RANGE!");
       Serial.println(" Current: " + String(kelembapanSensor, 1) + "% (Target: " + String(targetHumidityMin, 1) + "-" + String(targetHumidityMax, 1) + "%)");
@@ -986,32 +1179,43 @@ void checkHumidityControl() {
   }
 }
 
-void checkTemperatureControl() {
-  if (!systemRunning || tempProtectionActive || doorOpen) {
+void checkTemperatureControl()
+{
+  if (!systemRunning || tempProtectionActive || doorOpen)
+  {
     temperatureControlActive = false;
     return;
   }
-  if (isnan(suhuSensor)) {
+  if (isnan(suhuSensor))
+  {
     temperatureControlActive = false;
     return;
   }
-  if (suhuSensor > (targetTemperatureMax + TEMPERATURE_HYSTERESIS)) {
-    if (!temperatureControlActive) {
+  if (suhuSensor > (targetTemperatureMax + TEMPERATURE_HYSTERESIS))
+  {
+    if (!temperatureControlActive)
+    {
       temperatureControlActive = true;
       Serial.println("🌡 TEMPERATURE CONTROL ACTIVATED!");
       Serial.println(" Current: " + String(suhuSensor, 1) + "°C > Target: " + String(targetTemperatureMax, 1) + "°C");
     }
     controlExhaustTemperature(suhuSensor);
-  } else if (suhuSensor < (targetTemperatureMin - TEMPERATURE_HYSTERESIS)) {
-    if (temperatureControlActive) {
+  }
+  else if (suhuSensor < (targetTemperatureMin - TEMPERATURE_HYSTERESIS))
+  {
+    if (temperatureControlActive)
+    {
       temperatureControlActive = false;
       Serial.println("🌡 TEMPERATURE CONTROL DEACTIVATED!");
       digitalWrite(MOSFET1_PIN, LOW);
       exhaustServo.write(0);
       exhaustStatus = "Tutup";
     }
-  } else if (suhuSensor >= targetTemperatureMin && suhuSensor <= targetTemperatureMax) {
-    if (temperatureControlActive) {
+  }
+  else if (suhuSensor >= targetTemperatureMin && suhuSensor <= targetTemperatureMax)
+  {
+    if (temperatureControlActive)
+    {
       temperatureControlActive = false;
       Serial.println("🌡 TEMPERATURE IN IDEAL RANGE!");
       digitalWrite(MOSFET1_PIN, LOW);
@@ -1021,39 +1225,51 @@ void checkTemperatureControl() {
   }
 }
 
-void controlExhaustHumidity(float humidity) {
+void controlExhaustHumidity(float humidity)
+{
   float excess = humidity - targetHumidityMax;
-  if (excess <= 5.0) {
+  if (excess <= 5.0)
+  {
     digitalWrite(MOSFET1_PIN, HIGH);
-    exhaustServo.write(45);
+    exhaustServo.write(35);
     exhaustStatus = "Sedang-Humid";
     Serial.println("🌬 Exhaust SEDANG - Excess humidity: " + String(excess, 1) + "%");
-  } else if (excess <= 10.0) {
+  }
+  else if (excess <= 10.0)
+  {
     digitalWrite(MOSFET1_PIN, HIGH);
-    exhaustServo.write(70);
+    exhaustServo.write(55);
     exhaustStatus = "Cepat-Humid";
     Serial.println("🌬 Exhaust CEPAT - Excess humidity: " + String(excess, 1) + "%");
-  } else {
+  }
+  else
+  {
     digitalWrite(MOSFET1_PIN, HIGH);
-    exhaustServo.write(90);
+    exhaustServo.write(75);
     exhaustStatus = "Maksimal-Humid";
     Serial.println("🌬 Exhaust MAKSIMAL - Excess humidity: " + String(excess, 1) + "%");
   }
 }
 
-void controlExhaustTemperature(float temperature) {
+void controlExhaustTemperature(float temperature)
+{
   float excess = temperature - targetTemperatureMax;
-  if (excess <= 2.0) {
+  if (excess <= 2.0)
+  {
     digitalWrite(MOSFET1_PIN, HIGH);
     exhaustServo.write(45);
     exhaustStatus = "Sedang-Temp";
     Serial.println("🌬 Exhaust SEDANG - Excess temp: " + String(excess, 1) + "°C");
-  } else if (excess <= 5.0) {
+  }
+  else if (excess <= 5.0)
+  {
     digitalWrite(MOSFET1_PIN, HIGH);
     exhaustServo.write(70);
     exhaustStatus = "Cepat-Temp";
     Serial.println("🌬 Exhaust CEPAT - Excess temp: " + String(excess, 1) + "°C");
-  } else {
+  }
+  else
+  {
     digitalWrite(MOSFET1_PIN, HIGH);
     exhaustServo.write(90);
     exhaustStatus = "Maksimal-Temp";
@@ -1062,44 +1278,58 @@ void controlExhaustTemperature(float temperature) {
 }
 
 //=============================================================================== OPTION PRIORITY ===============================================================================
-void applyControls() {
-  if (!isAutoMode) {
-    if (timerEnabled && !timerPaused) {
+void applyControls()
+{
+  if (!isAutoMode)
+  {
+    if (timerEnabled && !timerPaused)
+    {
       applyTimerControls();
-    } else {
+    }
+    else
+    {
       applyManualControls();
     }
-  } else {
+  }
+  else
+  {
     applyFuzzyLogicControls();
   }
 }
 
 //=============================================================================== FUNCTION TIMER CONTROLS ===============================================================================
-void applyTimerControls() {
+void applyTimerControls()
+{
   Serial.println("\n⏱️ === TIMER CONTROL MODE ===");
   Serial.println(" Timer remaining: " + String(timerRemaining) + "s");
-  if (!manualHeaterControl) {
+  if (!manualHeaterControl)
+  {
     digitalWrite(RELAY1_PIN, RELAY_ON);
     digitalWrite(RELAY2_PIN, RELAY_ON);
     pemanasStatus = "Timer-ON";
   }
-  if (!manualFanPanControl && !manualFanColControl) {
+  if (!manualFanPanControl && !manualFanColControl)
+  {
     ledcWrite(FANHEATPAN1, 255); // Fan Panel full
     kipasStatus = "Timer-ON";
     bool kondisiCerah = (weatherMain == "cerah" || weatherMain == "berawan");
     time_t now = time(nullptr);
-    struct tm* ptm = localtime(&now);
+    struct tm *ptm = localtime(&now);
     int jamSekarang = ptm->tm_hour;
     bool jamKolektor = (jamSekarang >= 6 && jamSekarang < 17);
-    if (kondisiCerah && jamKolektor) {
+    if (kondisiCerah && jamKolektor)
+    {
       ledcWrite(FANHEATCOL2, 255); // Fan Collector full
       kipasStatus = "Timer-ON (Pan & Col)";
-    } else {
+    }
+    else
+    {
       ledcWrite(FANHEATCOL2, 0);
       kipasStatus = "Timer-ON (Pan only)";
     }
   }
-  if (!manualExhaustControl) {
+  if (!manualExhaustControl)
+  {
     digitalWrite(MOSFET1_PIN, HIGH);
     exhaustServo.write(90);
     exhaustStatus = "Timer-ON";
@@ -1109,7 +1339,8 @@ void applyTimerControls() {
 }
 
 //=============================================================================== FUNCTION FUZZY ALL ===============================================================================
-void applyFuzzyLogicControls() {
+void applyFuzzyLogicControls()
+{
   Serial.println("\n🧠 === FUZZY LOGIC CONTROL MODE (AUTO) ===");
   fuzzy->setInput(1, suhuSensor);
   fuzzy->setInput(2, kadarAir);
@@ -1128,16 +1359,22 @@ void applyFuzzyLogicControls() {
   controlSteamPusher(steamActive);
 }
 
-void controlHeater(float output) {
-  if (output <= 84) {
+void controlHeater(float output)
+{
+  if (output <= 84)
+  {
     digitalWrite(RELAY1_PIN, RELAY_OFF);
     digitalWrite(RELAY2_PIN, RELAY_OFF);
     pemanasStatus = "Mati";
-  } else if (output >= 85 && output <= 126) {
+  }
+  else if (output >= 85 && output <= 126)
+  {
     digitalWrite(RELAY1_PIN, RELAY_ON);
     digitalWrite(RELAY2_PIN, RELAY_OFF);
     pemanasStatus = "Hangat";
-  } else {
+  }
+  else
+  {
     digitalWrite(RELAY1_PIN, RELAY_ON);
     digitalWrite(RELAY2_PIN, RELAY_ON);
     pemanasStatus = "Panas";
@@ -1145,26 +1382,35 @@ void controlHeater(float output) {
   Serial.println("🔥 Heater: " + pemanasStatus);
 }
 
-void controlFan(float output) {
+void controlFan(float output)
+{
   int duty = constrain((int)round(output), 0, 255);
   int persen = map(duty, 0, 255, 0, 100);
   ledcWrite(FANHEATPAN1, duty); // Fan Panel
   bool kondisiCerah = (weatherMain == "cerah" || weatherMain == "berawan");
   time_t now = time(nullptr);
-  struct tm* ptm = localtime(&now);
+  struct tm *ptm = localtime(&now);
   int jamSekarang = ptm->tm_hour;
   bool jamKolektor = (jamSekarang >= 6 && jamSekarang < 17);
-  if (duty == 0) {
+  if (duty == 0)
+  {
     ledcWrite(FANHEATCOL2, 0);
     kipasStatus = "Mati";
-  } else if (kondisiCerah && jamKolektor) {
+  }
+  else if (kondisiCerah && jamKolektor)
+  {
     ledcWrite(FANHEATCOL2, duty);
     kipasStatus = "Pan & Col aktif (pwr: " + String(persen) + "%, cuaca: " + weatherMain + ")";
-  } else {
+  }
+  else
+  {
     ledcWrite(FANHEATCOL2, 0);
-    if (kondisiCerah) {
+    if (kondisiCerah)
+    {
       kipasStatus = "Hanya Pan (pwr: " + String(persen) + "%, malam hari)";
-    } else {
+    }
+    else
+    {
       kipasStatus = "Hanya Pan (pwr: " + String(persen) + "%, cuaca: " + weatherMain + ")";
     }
   }
@@ -1179,16 +1425,22 @@ void controlFan(float output) {
   Serial.println(" - Kolektor Aktif: " + String(kondisiCerah && jamKolektor ? "YES" : "NO"));
 }
 
-void controlExhaust(float output) {
-  if (output <= 30) {
+void controlExhaust(float output)
+{
+  if (output <= 30)
+  {
     digitalWrite(MOSFET1_PIN, LOW);
     exhaustServo.write(0);
     exhaustStatus = "Tutup";
-  } else if (output >= 30 && output <= 70) {
+  }
+  else if (output >= 30 && output <= 70)
+  {
     digitalWrite(MOSFET1_PIN, HIGH);
     exhaustServo.write(45);
     exhaustStatus = "Sedang";
-  } else {
+  }
+  else
+  {
     digitalWrite(MOSFET1_PIN, HIGH);
     exhaustServo.write(90);
     exhaustStatus = "Buka";
@@ -1196,90 +1448,115 @@ void controlExhaust(float output) {
   Serial.println("🌬 Exhaust: " + exhaustStatus);
 }
 
-void controlSteamPusher(bool state) {
-  if (state && systemRunning && !tempProtectionActive) {
+void controlSteamPusher(bool state)
+{
+  if (state && systemRunning && !tempProtectionActive)
+  {
     digitalWrite(MOSFET2_PIN, HIGH);
     Serial.println("💨 Steam Pusher: ON");
-  } else {
+  }
+  else
+  {
     digitalWrite(MOSFET2_PIN, LOW);
     Serial.println("💨 Steam Pusher: OFF");
   }
 }
 
 //=============================================================================== FUNCTION MANUAL ALL ===============================================================================
-void checkManualControls() {
+void checkManualControls()
+{
   static unsigned long lastManualCheck = 0;
-  if (millis() - lastManualCheck < 5000) return;
+  if (millis() - lastManualCheck < 5000)
+    return;
   lastManualCheck = millis();
-  if (WiFi.status() != WL_CONNECTED) return;
+  if (WiFi.status() != WL_CONNECTED)
+    return;
   Serial.println("🔍 Checking manual controls from Firebase...");
-  if (Firebase.getBool(firebaseData, "/control/manual_heater_enable")) {
+  if (Firebase.getBool(firebaseData, "/control/manual_heater_enable"))
+  {
     manualHeaterControl = firebaseData.boolData();
   }
   delay(50);
-  if (Firebase.getBool(firebaseData, "/control/manual_heater_state")) {
+  if (Firebase.getBool(firebaseData, "/control/manual_heater_state"))
+  {
     manualHeaterState = firebaseData.boolData();
   }
   delay(50);
-  if (Firebase.getBool(firebaseData, "/control/manual_fan_collector_enable")) {
+  if (Firebase.getBool(firebaseData, "/control/manual_fan_collector_enable"))
+  {
     manualFanColControl = firebaseData.boolData();
   }
   delay(50);
-  if (Firebase.getBool(firebaseData, "/control/manual_fan_collector_state")) {
+  if (Firebase.getBool(firebaseData, "/control/manual_fan_collector_state"))
+  {
     manualFanColState = firebaseData.boolData();
   }
   delay(50);
-  if (Firebase.getBool(firebaseData, "/control/manual_fan_panel_enable")) {
+  if (Firebase.getBool(firebaseData, "/control/manual_fan_panel_enable"))
+  {
     manualFanPanControl = firebaseData.boolData();
   }
   delay(50);
-  if (Firebase.getBool(firebaseData, "/control/manual_fan_panel_state")) {
+  if (Firebase.getBool(firebaseData, "/control/manual_fan_panel_state"))
+  {
     manualFanPanState = firebaseData.boolData();
   }
   delay(50);
-  if (Firebase.getBool(firebaseData, "/control/manual_exhaust_enable")) {
+  if (Firebase.getBool(firebaseData, "/control/manual_exhaust_enable"))
+  {
     manualExhaustControl = firebaseData.boolData();
   }
   delay(50);
-  if (Firebase.getBool(firebaseData, "/control/manual_exhaust_state")) {
+  if (Firebase.getBool(firebaseData, "/control/manual_exhaust_state"))
+  {
     manualExhaustState = firebaseData.boolData();
   }
   delay(50);
   Serial.println("✅ Manual controls synced");
 }
 
-void applyManualControls() {
+void applyManualControls()
+{
   Serial.println("\n🔧 === MANUAL CONTROL MODE ===");
-  if (!systemRunning) {
+  if (!systemRunning)
+  {
     Serial.println(" System not running - manual controls disabled");
     turnOffAllOutputs();
     return;
   }
-  if (manualHeaterControl) {
+  if (manualHeaterControl)
+  {
     controlHeaterManual(manualHeaterState);
     Serial.println(" Manual heater override");
   }
-  if (manualFanColControl) {
+  if (manualFanColControl)
+  {
     controlFanColManual(manualFanColState);
     Serial.println(" Manual fan collector override");
   }
-  if (manualFanPanControl) {
+  if (manualFanPanControl)
+  {
     controlFanPanManual(manualFanPanState);
     Serial.println(" Manual fan panel override");
   }
-  if (manualExhaustControl) {
+  if (manualExhaustControl)
+  {
     controlExhaustManual(manualExhaustState);
     Serial.println(" Manual exhaust override");
   }
   controlSteamPusher(systemRunning && !tempProtectionActive);
 }
 
-void controlHeaterManual(bool state) {
-  if (state) {
+void controlHeaterManual(bool state)
+{
+  if (state)
+  {
     digitalWrite(RELAY1_PIN, RELAY_ON);
     digitalWrite(RELAY2_PIN, RELAY_ON);
     pemanasStatus = "Manual ON";
-  } else {
+  }
+  else
+  {
     digitalWrite(RELAY1_PIN, RELAY_OFF);
     digitalWrite(RELAY2_PIN, RELAY_OFF);
     pemanasStatus = "Manual OFF";
@@ -1287,34 +1564,46 @@ void controlHeaterManual(bool state) {
   Serial.println("🔥 Heater Manual: " + pemanasStatus);
 }
 
-void controlFanColManual(bool state) {
-  if (state) {
+void controlFanColManual(bool state)
+{
+  if (state)
+  {
     ledcWrite(FANHEATCOL2, 255);
     kipasStatus = "Manual COL ON";
-  } else {
+  }
+  else
+  {
     ledcWrite(FANHEATCOL2, 0);
     kipasStatus = "Manual COL OFF";
   }
   Serial.println("💨 Fan Collector Manual: " + kipasStatus);
 }
 
-void controlFanPanManual(bool state) {
-  if (state) {
+void controlFanPanManual(bool state)
+{
+  if (state)
+  {
     ledcWrite(FANHEATPAN1, 255);
     kipasStatus = "Manual PAN ON";
-  } else {
+  }
+  else
+  {
     ledcWrite(FANHEATPAN1, 0);
     kipasStatus = "Manual PAN OFF";
   }
   Serial.println("💨 Fan Panel Manual: " + kipasStatus);
 }
 
-void controlExhaustManual(bool state) {
-  if (state) {
+void controlExhaustManual(bool state)
+{
+  if (state)
+  {
     digitalWrite(MOSFET1_PIN, HIGH);
     exhaustServo.write(90);
     exhaustStatus = "Manual ON";
-  } else {
+  }
+  else
+  {
     digitalWrite(MOSFET1_PIN, LOW);
     exhaustServo.write(0);
     exhaustStatus = "Manual OFF";
@@ -1323,7 +1612,8 @@ void controlExhaustManual(bool state) {
 }
 
 //=============================================================================== PROTECTION ===============================================================================
-void turnOffAllOutputs() {
+void turnOffAllOutputs()
+{
   digitalWrite(RELAY1_PIN, RELAY_OFF);
   digitalWrite(RELAY2_PIN, RELAY_OFF);
   digitalWrite(MOSFET1_PIN, LOW);
@@ -1331,18 +1621,22 @@ void turnOffAllOutputs() {
   ledcWrite(FANHEATPAN1, 0);
   ledcWrite(FANHEATCOL2, 0);
   exhaustServo.write(0);
-  if (!tempProtectionActive) {
+  if (!tempProtectionActive)
+  {
     pemanasStatus = "Mati";
     kipasStatus = "Mati";
     exhaustStatus = "Tutup";
   }
 }
 
-void updateDoorStatus() {
+void updateDoorStatus()
+{
   bool currentDoorState = (digitalRead(DOOR_SWITCH) == HIGH);
-  if (currentDoorState != doorOpen) {
+  if (currentDoorState != doorOpen)
+  {
     doorOpen = currentDoorState;
-    if (doorOpen && systemRunning) {
+    if (doorOpen && systemRunning)
+    {
       Serial.println("🚪 Door opened - Process PAUSED for safety");
       processStatus = "Paused";
       humidityControlActive = false;
@@ -1353,16 +1647,21 @@ void updateDoorStatus() {
       lcd.print("!PINTU TERBUKA!");
       lcd.setCursor(0, 1);
       lcd.print("Proses di-pause");
-    } else if (!doorOpen && systemRunning && processStatus == "Paused") {
+    }
+    else if (!doorOpen && systemRunning && processStatus == "Paused")
+    {
       Serial.println("🚪 Door closed - Process RESUMED");
       processStatus = "Berjalan";
     }
   }
 }
 
-void checkTemperatureProtection() {
-  if (suhuSensor > MAX_TEMP_LIMIT) {
-    if (!tempProtectionActive) {
+void checkTemperatureProtection()
+{
+  if (suhuSensor > MAX_TEMP_LIMIT)
+  {
+    if (!tempProtectionActive)
+    {
       tempProtectionActive = true;
       humidityControlActive = false;
       temperatureControlActive = false;
@@ -1384,7 +1683,9 @@ void checkTemperatureProtection() {
       lcd.setCursor(0, 1);
       lcd.print("T:" + String(suhuSensor, 0) + "C>>" + String(MAX_TEMP_LIMIT, 0) + "C");
     }
-  } else if (tempProtectionActive && suhuSensor < (MAX_TEMP_LIMIT - 5)) {
+  }
+  else if (tempProtectionActive && suhuSensor < (MAX_TEMP_LIMIT - 5))
+  {
     tempProtectionActive = false;
     clearError("TEMP_PROTECTION");
     Serial.println("✅ Temperature protection deactivated - Normal operation resumed");
@@ -1392,7 +1693,8 @@ void checkTemperatureProtection() {
 }
 
 //=============================================================================== CONNECTION FUNCTION ===============================================================================
-void connectWiFi() {
+void connectWiFi()
+{
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Connecting WiFi..");
@@ -1401,14 +1703,16 @@ void connectWiFi() {
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("🌐 Connecting to WiFi");
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+  while (WiFi.status() != WL_CONNECTED && attempts < 30)
+  {
     delay(500);
     Serial.print(".");
     attempts++;
     lcd.setCursor(14 + (attempts % 3), 0);
     lcd.print(".");
   }
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED)
+  {
     Serial.println();
     Serial.println("✅ WiFi connected successfully!");
     Serial.println(" IP: " + WiFi.localIP().toString());
@@ -1420,7 +1724,9 @@ void connectWiFi() {
     lcd.setCursor(0, 1);
     lcd.print("IP:" + WiFi.localIP().toString().substring(0, 12));
     delay(2000);
-  } else {
+  }
+  else
+  {
     Serial.println();
     addError("WIFI_FAILED", "WiFi connection failed");
     offlineMode = true;
@@ -1433,33 +1739,43 @@ void connectWiFi() {
   }
 }
 
-void sendOrBufferData() {
-  if (WiFi.status() == WL_CONNECTED && !offlineMode) {
-    if (millis() - lastWeatherUpdate > weatherInterval) {
+void sendOrBufferData()
+{
+  if (WiFi.status() == WL_CONNECTED && !offlineMode)
+  {
+    if (millis() - lastWeatherUpdate > weatherInterval)
+    {
       fetchWeatherData();
       lastWeatherUpdate = millis();
     }
     sendToFirebase();
-  } else {
+  }
+  else
+  {
     Serial.println("📤 Data buffered offline (WiFi unavailable)");
   }
 }
 
 //=============================================================================== OPENWEATHERMAP ===============================================================================
-void fetchWeatherData() {
-  if (WiFi.status() != WL_CONNECTED) return;
+void fetchWeatherData()
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return;
   Serial.println("🌤 Fetching weather data from Firebase...");
-  if (Firebase.getString(firebaseData, "/weather/main")) {
+  if (Firebase.getString(firebaseData, "/weather/main"))
+  {
     weatherMain = firebaseData.stringData();
     Serial.println(" Weather main: " + weatherMain);
   }
   delay(50);
-  if (Firebase.getString(firebaseData, "/weather/desc")) {
+  if (Firebase.getString(firebaseData, "/weather/desc"))
+  {
     weatherDesc = firebaseData.stringData();
     Serial.println(" Weather desc: " + weatherDesc);
   }
   delay(50);
-  if (Firebase.getFloat(firebaseData, "/weather/temp")) {
+  if (Firebase.getFloat(firebaseData, "/weather/temp"))
+  {
     tempOutside = firebaseData.floatData();
     Serial.println(" Temp outside: " + String(tempOutside) + "°C");
   }
@@ -1468,25 +1784,32 @@ void fetchWeatherData() {
 }
 
 //=============================================================================== FIREBASE FUNCTION ===============================================================================
-void setupFirebase() {
+void setupFirebase()
+{
   config.host = FIREBASE_HOST;
   config.signer.tokens.legacy_token = FIREBASE_AUTH;
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
-  if (WiFi.status() == WL_CONNECTED) {
-    if (Firebase.setString(firebaseData, "/system/status", "initializing")) {
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    if (Firebase.setString(firebaseData, "/system/status", "initializing"))
+    {
       Serial.println("✅ Firebase connected successfully!");
       clearError("FIREBASE_FAILED");
       sendSystemInfo();
-    } else {
+    }
+    else
+    {
       addError("FIREBASE_FAILED", "Firebase connection failed");
       Serial.println("❌ Firebase connection ERROR!");
     }
   }
 }
 
-void sendSystemInfo() {
-  if (WiFi.status() != WL_CONNECTED) return;
+void sendSystemInfo()
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return;
   Firebase.setString(firebaseData, "/system/wifi_ssid", WIFI_SSID);
   Firebase.setInt(firebaseData, "/system/wifi_rssi", WiFi.RSSI());
   Firebase.setString(firebaseData, "/system/ip_address", WiFi.localIP().toString());
@@ -1497,8 +1820,10 @@ void sendSystemInfo() {
   Serial.println("✅ System info sent to Firebase");
 }
 
-void sendSessionStart() {
-  if (WiFi.status() != WL_CONNECTED) return;
+void sendSessionStart()
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return;
   String sessionPath = "/sessions/" + sessionId;
   FirebaseJson json;
   json.set("session_id", sessionId);
@@ -1517,8 +1842,10 @@ void sendSessionStart() {
   Firebase.setString(firebaseData, "/system/process_status", "running");
 }
 
-void sendSessionEnd() {
-  if (WiFi.status() != WL_CONNECTED) return;
+void sendSessionEnd()
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return;
   String sessionPath = "/sessions/" + sessionId;
   FirebaseJson json;
   json.set("end_time", getTimestamp());
@@ -1530,21 +1857,26 @@ void sendSessionEnd() {
   Firebase.setString(firebaseData, "/system/process_status", "completed");
 }
 
-void sendSystemStatus(String status) {
-  if (WiFi.status() == WL_CONNECTED) {
+void sendSystemStatus(String status)
+{
+  if (WiFi.status() == WL_CONNECTED)
+  {
     Firebase.setString(firebaseData, "/system/status", status);
     Firebase.setString(firebaseData, "/system/last_boot", getTimestamp());
     Firebase.setString(firebaseData, "/system/version", "v4.0_servo_fixed");
   }
 }
 
-void sendToFirebase() {
+void sendToFirebase()
+{
   static unsigned long lastSend = 0;
-  if (millis() - lastSend < 1000) {
+  if (millis() - lastSend < 1000)
+  {
     Serial.println("⚠️ Firebase send throttled");
     return;
   }
-  if (WiFi.status() != WL_CONNECTED) {
+  if (WiFi.status() != WL_CONNECTED)
+  {
     Serial.println("❌ WiFi not connected");
     offlineMode = true;
     return;
@@ -1553,75 +1885,89 @@ void sendToFirebase() {
   Serial.println("\n📤 === SENDING DATA TO FIREBASE ===");
   bool allSuccess = true;
   // Send sensor data
-  if (!Firebase.setFloat(firebaseData, "/sensor/suhu", suhuSensor)) {
+  if (!Firebase.setFloat(firebaseData, "/sensor/suhu", suhuSensor))
+  {
     Serial.println("❌ Suhu failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
-  if (!Firebase.setFloat(firebaseData, "/sensor/humidity", kelembapanSensor)) {
+  if (!Firebase.setFloat(firebaseData, "/sensor/humidity", kelembapanSensor))
+  {
     Serial.println("❌ Humidity failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
-  if (!Firebase.setFloat(firebaseData, "/sensor/kadarAir", kadarAir)) {
+  if (!Firebase.setFloat(firebaseData, "/sensor/kadarAir", kadarAir))
+  {
     Serial.println("❌ KadarAir failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
-  if (!Firebase.setFloat(firebaseData, "/sensor/berat", beratSekarang)) {
+  if (!Firebase.setFloat(firebaseData, "/sensor/berat", beratSekarang))
+  {
     Serial.println("❌ Berat failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
   // Send status data
-  if (!Firebase.setString(firebaseData, "/status/pengeringan", processStatus)) {
+  if (!Firebase.setString(firebaseData, "/status/pengeringan", processStatus))
+  {
     Serial.println("❌ Status pengeringan failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
-  if (!Firebase.setString(firebaseData, "/status/pemanas", pemanasStatus)) {
+  if (!Firebase.setString(firebaseData, "/status/pemanas", pemanasStatus))
+  {
     Serial.println("❌ Status pemanas failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
-  if (!Firebase.setString(firebaseData, "/status/kipas", kipasStatus)) {
+  if (!Firebase.setString(firebaseData, "/status/kipas", kipasStatus))
+  {
     Serial.println("❌ Status kipas failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
-  if (!Firebase.setString(firebaseData, "/status/exhaust", exhaustStatus)) {
+  if (!Firebase.setString(firebaseData, "/status/exhaust", exhaustStatus))
+  {
     Serial.println("❌ Status exhaust failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
-  if (!Firebase.setBool(firebaseData, "/status/door_open", doorOpen)) {
+  if (!Firebase.setBool(firebaseData, "/status/door_open", doorOpen))
+  {
     Serial.println("❌ Door open status failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
-  if (!Firebase.setBool(firebaseData, "/status/temp_protection", tempProtectionActive)) {
+  if (!Firebase.setBool(firebaseData, "/status/temp_protection", tempProtectionActive))
+  {
     Serial.println("❌ Temp protection status failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
-  if (!Firebase.setBool(firebaseData, "/status/humidity_control", humidityControlActive)) {
+  if (!Firebase.setBool(firebaseData, "/status/humidity_control", humidityControlActive))
+  {
     Serial.println("❌ Humidity control status failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
-  if (!Firebase.setBool(firebaseData, "/status/temperature_control", temperatureControlActive)) {
+  if (!Firebase.setBool(firebaseData, "/status/temperature_control", temperatureControlActive))
+  {
     Serial.println("❌ Temperature control status failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
   // Send control mode
-  if (!Firebase.setBool(firebaseData, "/control/auto_mode", isAutoMode)) {
+  if (!Firebase.setBool(firebaseData, "/control/auto_mode", isAutoMode))
+  {
     Serial.println("❌ Auto mode status failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
   // Send session data if running
-  if (systemRunning && !sessionId.isEmpty()) {
+  if (systemRunning && !sessionId.isEmpty())
+  {
     String sessionPath = "/sessions/" + sessionId + "/data/" + String(millis());
     FirebaseJson json;
     json.set("timestamp", getTimestamp());
@@ -1636,47 +1982,59 @@ void sendToFirebase() {
     json.set("humidity_control", humidityControlActive);
     json.set("temperature_control", temperatureControlActive);
     json.set("control_mode", isAutoMode ? "AUTO" : "MANUAL");
-    if (!Firebase.setJSON(firebaseData, sessionPath, json)) {
+    if (!Firebase.setJSON(firebaseData, sessionPath, json))
+    {
       Serial.println("❌ Session data failed: " + firebaseData.errorReason());
       allSuccess = false;
     }
     delay(50);
   }
   // Update system heartbeat
-  if (!Firebase.setString(firebaseData, "/system/last_update", getTimestamp())) {
+  if (!Firebase.setString(firebaseData, "/system/last_update", getTimestamp()))
+  {
     Serial.println("❌ System last update failed: " + firebaseData.errorReason());
     allSuccess = false;
   }
   delay(50);
   // Send system info every 30 seconds
   static unsigned long lastSystemInfoSend = 0;
-  if (millis() - lastSystemInfoSend > 30000) {
+  if (millis() - lastSystemInfoSend > 30000)
+  {
     sendSystemInfo();
     lastSystemInfoSend = millis();
   }
-  if (allSuccess) {
+  if (allSuccess)
+  {
     Serial.println("🎉 All Firebase data sent successfully!");
     clearError("FIREBASE_FAILED");
-  } else {
+  }
+  else
+  {
     addError("FIREBASE_FAILED", "Some Firebase operations failed");
     Serial.println("⚠️ Some Firebase operations failed");
   }
 }
 
-void loadConfigFromFirebase() {
-  if (Firebase.getFloat(firebaseData, "/config/targetMoisture")) {
+void loadConfigFromFirebase()
+{
+  if (Firebase.getFloat(firebaseData, "/config/targetMoisture"))
+  {
     targetMoisture = firebaseData.floatData();
   }
-  if (Firebase.getFloat(firebaseData, "/config/targetHumidityMin")) {
+  if (Firebase.getFloat(firebaseData, "/config/targetHumidityMin"))
+  {
     targetHumidityMin = firebaseData.floatData();
   }
-  if (Firebase.getFloat(firebaseData, "/config/targetHumidityMax")) {
+  if (Firebase.getFloat(firebaseData, "/config/targetHumidityMax"))
+  {
     targetHumidityMax = firebaseData.floatData();
   }
-  if (Firebase.getFloat(firebaseData, "/config/targetTemperatureMin")) {
+  if (Firebase.getFloat(firebaseData, "/config/targetTemperatureMin"))
+  {
     targetTemperatureMin = firebaseData.floatData();
   }
-  if (Firebase.getFloat(firebaseData, "/config/targetTemperatureMax")) {
+  if (Firebase.getFloat(firebaseData, "/config/targetTemperatureMax"))
+  {
     targetTemperatureMax = firebaseData.floatData();
   }
   Serial.println("📥 Config loaded from Firebase:");
@@ -1687,26 +2045,33 @@ void loadConfigFromFirebase() {
   Serial.println(" Target Temperature Max: " + String(targetTemperatureMax));
 }
 
-void listenConfigUpdates() {
-  if (Firebase.getFloat(firebaseData, "/config/targetMoisture")) {
+void listenConfigUpdates()
+{
+  if (Firebase.getFloat(firebaseData, "/config/targetMoisture"))
+  {
     targetMoisture = firebaseData.floatData();
   }
-  if (Firebase.getFloat(firebaseData, "/config/targetHumidityMin")) {
+  if (Firebase.getFloat(firebaseData, "/config/targetHumidityMin"))
+  {
     targetHumidityMin = firebaseData.floatData();
   }
-  if (Firebase.getFloat(firebaseData, "/config/targetHumidityMax")) {
+  if (Firebase.getFloat(firebaseData, "/config/targetHumidityMax"))
+  {
     targetHumidityMax = firebaseData.floatData();
   }
-  if (Firebase.getFloat(firebaseData, "/config/targetTemperatureMin")) {
+  if (Firebase.getFloat(firebaseData, "/config/targetTemperatureMin"))
+  {
     targetTemperatureMin = firebaseData.floatData();
   }
-  if (Firebase.getFloat(firebaseData, "/config/targetTemperatureMax")) {
+  if (Firebase.getFloat(firebaseData, "/config/targetTemperatureMax"))
+  {
     targetTemperatureMax = firebaseData.floatData();
   }
 }
 
 //=============================================================================== OFFLINE FUNCTION ===============================================================================
-void saveDataPoint() {
+void saveDataPoint()
+{
   DataPoint dp;
   dp.timestamp = getTimestamp();
   dp.temperature = suhuSensor;
@@ -1717,20 +2082,25 @@ void saveDataPoint() {
   dp.heaterStatus = pemanasStatus;
   dp.fanStatus = kipasStatus;
   dp.exhaustStatus = exhaustStatus;
-  if (WiFi.status() != WL_CONNECTED) {
+  if (WiFi.status() != WL_CONNECTED)
+  {
     offlineBuffer.push_back(dp);
     offlineMode = true;
-    if (offlineBuffer.size() > 100) {
+    if (offlineBuffer.size() > 100)
+    {
       offlineBuffer.erase(offlineBuffer.begin());
     }
     Serial.println("💾 Data saved to offline buffer");
   }
 }
 
-void syncOfflineData() {
-  if (offlineBuffer.empty()) return;
+void syncOfflineData()
+{
+  if (offlineBuffer.empty())
+    return;
   Serial.println("🔄 Syncing offline data to Firebase...");
-  for (auto& dp : offlineBuffer) {
+  for (auto &dp : offlineBuffer)
+  {
     String path = "/sessions/" + sessionId + "/data/" + String(millis());
     FirebaseJson json;
     json.set("timestamp", dp.timestamp);
@@ -1742,9 +2112,12 @@ void syncOfflineData() {
     json.set("heater", dp.heaterStatus);
     json.set("fan", dp.fanStatus);
     json.set("exhaust", dp.exhaustStatus);
-    if (Firebase.setJSON(firebaseData, path, json)) {
+    if (Firebase.setJSON(firebaseData, path, json))
+    {
       Serial.println("✅ Offline data synced: " + dp.timestamp);
-    } else {
+    }
+    else
+    {
       Serial.println("❌ Failed to sync: " + dp.timestamp);
       break;
     }
@@ -1756,19 +2129,184 @@ void syncOfflineData() {
 }
 
 //=============================================================================== CALCULATION ===============================================================================
-void calculateMoistureContent() {
-  if (beratSekarang <= 0 || beratAwal <= 0) {
+void calculateMoistureContent()
+{
+  if (beratSekarang <= 0 || beratAwal <= 0)
+  {
     kadarAir = 0;
-  } else {
-    kadarAir = (beratSekarang / beratAwal) * 100;
-    if (kadarAir > 100) kadarAir = 100;
-    if (kadarAir < 0) kadarAir = 0;
+    kalman_kadarAir = 0; // Reset Kalman
   }
-  Serial.println("📊 Moisture content: " + String(kadarAir, 1) + "%");
+  else
+  {
+    // Hitung kadar air raw
+    float rawKadarAir = (beratSekarang / beratAwal) * 100;
+
+    // Batasi range yang masuk akal
+    if (rawKadarAir > 100)
+      rawKadarAir = 100;
+    if (rawKadarAir < 0)
+      rawKadarAir = 0;
+
+    Serial.println("📊 Raw moisture: " + String(rawKadarAir, 2) + "%");
+
+    // Apply Kalman filter untuk smooth data
+    kadarAir = kalmanFilter(rawKadarAir);
+
+    Serial.println("📊 Filtered moisture: " + String(kadarAir, 1) + "%");
+
+    // Validasi: kadar air tidak boleh naik signifikan saat proses berjalan
+    static float lastKadarAir = 100;
+    if (systemRunning && kadarAir > lastKadarAir + 5)
+    {
+      // Kadar air naik > 5% = anomali
+      Serial.println("⚠️  Moisture increase anomaly detected!");
+      kadarAir = lastKadarAir; // Gunakan nilai sebelumnya
+    }
+    lastKadarAir = kadarAir;
+  }
+
+  Serial.println("📊 FINAL Moisture content: " + String(kadarAir, 1) + "%");
+}
+
+// stabilisation weight
+void sortArray(float arr[], int n)
+{
+  for (int i = 0; i < n - 1; i++)
+  {
+    for (int j = 0; j < n - i - 1; j++)
+    {
+      if (arr[j] > arr[j + 1])
+      {
+        float temp = arr[j];
+        arr[j] = arr[j + 1];
+        arr[j + 1] = temp;
+      }
+    }
+  }
+}
+
+// Median Filter - menghilangkan outliers
+float medianFilter(float newValue)
+{
+  medianBuffer[medianIndex] = newValue;
+  medianIndex = (medianIndex + 1) % MEDIAN_SAMPLES;
+
+  // Copy buffer untuk sorting
+  float tempBuffer[MEDIAN_SAMPLES];
+  for (int i = 0; i < MEDIAN_SAMPLES; i++)
+  {
+    tempBuffer[i] = medianBuffer[i];
+  }
+
+  // Sort dan ambil nilai tengah
+  sortArray(tempBuffer, MEDIAN_SAMPLES);
+  return tempBuffer[MEDIAN_SAMPLES / 2];
+}
+
+// Moving Average Filter - smoothing data berat
+float movingAverageFilter(float newReading)
+{
+  if (!weightFilterInitialized)
+  {
+    // Inisialisasi filter dengan nilai pertama
+    for (int i = 0; i < WEIGHT_FILTER_SIZE; i++)
+    {
+      weightReadings[i] = newReading;
+    }
+    weightSum = newReading * WEIGHT_FILTER_SIZE;
+    weightFilterInitialized = true;
+    return newReading;
+  }
+
+  // Kurangi nilai lama dari sum
+  weightSum -= weightReadings[weightReadingIndex];
+
+  // Tambahkan nilai baru
+  weightReadings[weightReadingIndex] = newReading;
+  weightSum += newReading;
+
+  // Update index dengan wrapping
+  weightReadingIndex = (weightReadingIndex + 1) % WEIGHT_FILTER_SIZE;
+
+  // Return rata-rata
+  return weightSum / WEIGHT_FILTER_SIZE;
+}
+
+// Kalman Filter untuk kadar air - mengurangi noise
+float kalmanFilter(float measurement)
+{
+  // Prediction update
+  float P_predict = kalman_P + kalman_Q;
+
+  // Measurement update
+  float K = P_predict / (P_predict + kalman_R); // Kalman gain
+  kalman_kadarAir = kalman_kadarAir + K * (measurement - kalman_kadarAir);
+  kalman_P = (1 - K) * P_predict;
+
+  return kalman_kadarAir;
+}
+
+//=============================================================================== RECALIBRATION LOADCELL ===============================================================================
+void recalibrateScale()
+{
+  Serial.println("\n=== RECALIBRATING SCALE ===");
+  Serial.println("Turn OFF heater for accurate calibration...");
+
+  // Matikan heater sementara
+  bool heaterWasOn = (pemanasStatus != "Mati");
+  if (heaterWasOn)
+  {
+    digitalWrite(RELAY1_PIN, RELAY_OFF);
+    digitalWrite(RELAY2_PIN, RELAY_OFF);
+    Serial.println("Heater turned OFF");
+    delay(3000); // Tunggu 3 detik stabilisasi
+  }
+
+  // Baca berat 20x untuk kalibrasi
+  float calibrationSum = 0;
+  int validReadings = 0;
+
+  for (int i = 0; i < 20; i++)
+  {
+    if (scale.is_ready())
+    {
+      float reading = scale.get_units(10);
+      if (reading > 0 && reading < 10000)
+      { // Filter nilai tidak masuk akal
+        calibrationSum += reading;
+        validReadings++;
+      }
+    }
+    delay(200);
+  }
+
+  if (validReadings > 10)
+  {
+    beratSekarang = calibrationSum / validReadings;
+    Serial.println("✅ Scale recalibrated: " + String(beratSekarang, 2) + "g");
+    Serial.println("   Valid readings: " + String(validReadings) + "/20");
+
+    // Reset filters
+    weightFilterInitialized = false;
+    kalman_kadarAir = 0;
+    kalman_P = 1;
+  }
+  else
+  {
+    Serial.println("❌ Recalibration failed - not enough valid readings");
+  }
+
+  // Nyalakan kembali heater jika sebelumnya nyala
+  if (heaterWasOn && systemRunning)
+  {
+    // (logika nyalakan heater akan ditangani di loop utama)
+    Serial.println("Heater will be turned back ON by main loop");
+  }
 }
 
 //=============================================================================== FUZZY LOGIC ===============================================================================
-void setupFuzzyLogic() {
+void setupFuzzyLogic()
+{
   // Input 1: Suhu
   FuzzyInput *suhu = new FuzzyInput(1);
   suhu->addFuzzySet(dinginSuhu);
@@ -1807,7 +2345,8 @@ void setupFuzzyLogic() {
   fuzzy->addFuzzyOutput(exhaust);
 }
 
-void setupFuzzyRules() {
+void setupFuzzyRules()
+{
   // R1: IF Dingin AND Kering THEN Mati AND Mati
   FuzzyRuleAntecedent *r1_antecedent = new FuzzyRuleAntecedent();
   r1_antecedent->joinWithAND(dinginSuhu, keringKadar);
@@ -1884,13 +2423,17 @@ void setupFuzzyRules() {
 }
 
 //=============================================================================== ERROR MANAGEMENT ===============================================================================
-void addError(String code, String message) {
-  for (int i = 0; i < errorCount; i++) {
-    if (systemErrors[i].code == code && systemErrors[i].active) {
+void addError(String code, String message)
+{
+  for (int i = 0; i < errorCount; i++)
+  {
+    if (systemErrors[i].code == code && systemErrors[i].active)
+    {
       return;
     }
   }
-  if (errorCount < 10) {
+  if (errorCount < 10)
+  {
     systemErrors[errorCount].code = code;
     systemErrors[errorCount].message = message;
     systemErrors[errorCount].active = true;
@@ -1898,48 +2441,59 @@ void addError(String code, String message) {
     errorCount++;
     hasActiveErrors = true;
     Serial.println("❌ ERROR ADDED: [" + code + "] " + message);
-    if (WiFi.status() == WL_CONNECTED) {
+    if (WiFi.status() == WL_CONNECTED)
+    {
       Firebase.setString(firebaseData, "/system/last_error", code + ": " + message);
       Firebase.setString(firebaseData, "/system/error_time", getTimestamp());
     }
   }
 }
 
-void clearError(String code) {
-  for (int i = 0; i < errorCount; i++) {
-    if (systemErrors[i].code == code && systemErrors[i].active) {
+void clearError(String code)
+{
+  for (int i = 0; i < errorCount; i++)
+  {
+    if (systemErrors[i].code == code && systemErrors[i].active)
+    {
       systemErrors[i].active = false;
       Serial.println("✅ ERROR CLEARED: [" + code + "]");
       break;
     }
   }
   hasActiveErrors = false;
-  for (int i = 0; i < errorCount; i++) {
-    if (systemErrors[i].active) {
+  for (int i = 0; i < errorCount; i++)
+  {
+    if (systemErrors[i].active)
+    {
       hasActiveErrors = true;
       break;
     }
   }
-  if (!hasActiveErrors && WiFi.status() == WL_CONNECTED) {
+  if (!hasActiveErrors && WiFi.status() == WL_CONNECTED)
+  {
     Firebase.setString(firebaseData, "/system/last_error", "No active errors");
   }
 }
 
-void clearAllErrors() {
-  for (int i = 0; i < errorCount; i++) {
+void clearAllErrors()
+{
+  for (int i = 0; i < errorCount; i++)
+  {
     systemErrors[i].active = false;
   }
   hasActiveErrors = false;
   errorCount = 0;
   Serial.println("✅ All errors cleared");
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED)
+  {
     Firebase.setString(firebaseData, "/system/last_error", "All errors cleared");
     Firebase.setString(firebaseData, "/system/error_time", getTimestamp());
   }
 }
 
 //=============================================================================== LCD DISPLAY FUNCTIONS ===============================================================================
-void displayBootMessage() {
+void displayBootMessage()
+{
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("SISTEM PENGERING");
@@ -1954,171 +2508,235 @@ void displayBootMessage() {
   delay(3000);
 }
 
-void updateDisplay() {
-  if (hasActiveErrors) {
+void updateDisplay()
+{
+  if (hasActiveErrors)
+  {
     displayErrors();
-  } else if (infoDisplayActive) {
+  }
+  else if (infoDisplayActive)
+  {
     displayInfo();
-  } else {
+  }
+  else
+  {
     updateDefaultDisplay();
   }
 }
 
-void updateDefaultDisplay() {
+void updateDefaultDisplay()
+{
   lcd.clear();
-  switch (currentState) {
-    case WAIT_TARE:
-      lcd.setCursor(0, 0);
-      lcd.print("Tekan TARE untuk");
-      lcd.setCursor(0, 1);
-      lcd.print("reset timbangan");
-      break;
-    case WAIT_OBJECT: {
-      lcd.setCursor(0, 0);
-      lcd.print("Masukkan objek");
-      lcd.setCursor(0, 1);
-      float currentWeight = scale.get_units(10);
-      if (currentWeight < 0 || currentWeight < 5.0) {
-        lcd.print("Timbangan kosong ");
-      } else {
-        lcd.print("Berat:" + String(currentWeight, 0) + "g ");
-      }
-      break;
+  switch (currentState)
+  {
+  case WAIT_TARE:
+    lcd.setCursor(0, 0);
+    lcd.print("Tekan TARE untuk");
+    lcd.setCursor(0, 1);
+    lcd.print("reset timbangan");
+    break;
+  case WAIT_OBJECT:
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("Masukkan objek");
+    lcd.setCursor(0, 1);
+    float currentWeight = scale.get_units(10);
+    if (currentWeight < 0 || currentWeight < 5.0)
+    {
+      lcd.print("Timbangan kosong ");
     }
-    case WAIT_START:
-      lcd.setCursor(0, 0);
-      lcd.print("Awal:" + String(beratAwal, 0) + "g ");
-      lcd.setCursor(0, 1);
-      lcd.print("Tekan START");
-      break;
-    case RUNNING:
-      lcd.setCursor(0, 0);
-      lcd.print("T:" + String(suhuSensor, 0) + " H:" + String(kelembapanSensor, 0) + " KA:" + String(kadarAir, 0));
-      lcd.setCursor(0, 1);
-      String statusLine = "";
-      if (tempProtectionActive) {
-        statusLine = "TEMP PROTECTION";
-      } else if (doorOpen) {
-        statusLine = "DOOR OPEN-PAUSED";
-      } else {
-        statusLine = (isAutoMode ? "AUTO: " : "MAN: ") + processStatus;
-      }
-      while (statusLine.length() < 16) statusLine += " ";
-      if (statusLine.length() > 16) statusLine = statusLine.substring(0, 16);
-      lcd.print(statusLine);
-      break;
+    else
+    {
+      lcd.print("Berat:" + String(currentWeight, 0) + "g ");
+    }
+    break;
+  }
+  case WAIT_START:
+    lcd.setCursor(0, 0);
+    lcd.print("Awal:" + String(beratAwal, 0) + "g ");
+    lcd.setCursor(0, 1);
+    lcd.print("Tekan START");
+    break;
+  case RUNNING:
+    lcd.setCursor(0, 0);
+    lcd.print("T:" + String(suhuSensor, 0) + " H:" + String(kelembapanSensor, 0) + " KA:" + String(kadarAir, 0));
+    lcd.setCursor(0, 1);
+    String statusLine = "";
+    if (tempProtectionActive)
+    {
+      statusLine = "TEMP PROTECTION";
+    }
+    else if (doorOpen)
+    {
+      statusLine = "DOOR OPEN-PAUSED";
+    }
+    else
+    {
+      statusLine = (isAutoMode ? "AUTO: " : "MAN: ") + processStatus;
+    }
+    while (statusLine.length() < 16)
+      statusLine += " ";
+    if (statusLine.length() > 16)
+      statusLine = statusLine.substring(0, 16);
+    lcd.print(statusLine);
+    break;
   }
 }
 
-void displayInfo() {
+void displayInfo()
+{
   lcd.clear();
-  switch (currentInfoMode) {
-    case INFO_SENSORS: {
-      lcd.setCursor(0, 0);
-      lcd.print("== SENSORS ==");
-      lcd.setCursor(0, 1);
-      String sensorStatus = "DHT:";
-      sensorStatus += (isnan(dht.readTemperature()) ? "ERR" : "OK");
-      sensorStatus += " HX711:";
-      sensorStatus += (scale.is_ready() ? "OK" : "ERR");
-      lcd.print(sensorStatus);
-      break;
+  switch (currentInfoMode)
+  {
+  case INFO_SENSORS:
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("== SENSORS ==");
+    lcd.setCursor(0, 1);
+    String sensorStatus = "DHT:";
+    sensorStatus += (isnan(dht.readTemperature()) ? "ERR" : "OK");
+    sensorStatus += " HX711:";
+    sensorStatus += (scale.is_ready() ? "OK" : "ERR");
+    lcd.print(sensorStatus);
+    break;
+  }
+  case INFO_WEIGHTS:
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("=== WEIGHTS ===");
+    lcd.setCursor(0, 1);
+    lcd.print("A:" + String(beratAwal, 0) + "g S:" + String(beratSekarang, 0) + "g");
+    break;
+  }
+  case INFO_WIFI:
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("=== NETWORK ===");
+    lcd.setCursor(0, 1);
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      lcd.print("WiFi:" + String(WiFi.RSSI()) + "dBm OK");
     }
-    case INFO_WEIGHTS: {
-      lcd.setCursor(0, 0);
-      lcd.print("=== WEIGHTS ===");
-      lcd.setCursor(0, 1);
-      lcd.print("A:" + String(beratAwal, 0) + "g S:" + String(beratSekarang, 0) + "g");
-      break;
+    else
+    {
+      lcd.print("WiFi: OFFLINE");
     }
-    case INFO_WIFI: {
-      lcd.setCursor(0, 0);
-      lcd.print("=== NETWORK ===");
-      lcd.setCursor(0, 1);
-      if (WiFi.status() == WL_CONNECTED) {
-        lcd.print("WiFi:" + String(WiFi.RSSI()) + "dBm OK");
-      } else {
-        lcd.print("WiFi: OFFLINE");
-      }
-      break;
+    break;
+  }
+  case INFO_HUMADITY:
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("== HUMIDITY ==");
+    lcd.setCursor(0, 1);
+    String humidStatus = String(kelembapanSensor, 0) + "% ";
+    if (humidityControlActive)
+    {
+      humidStatus += "CTRL-ON";
     }
-    case INFO_HUMADITY: {
-      lcd.setCursor(0, 0);
-      lcd.print("== HUMIDITY ==");
-      lcd.setCursor(0, 1);
-      String humidStatus = String(kelembapanSensor, 0) + "% ";
-      if (humidityControlActive) {
-        humidStatus += "CTRL-ON";
-      } else if (kelembapanSensor >= targetHumidityMin && kelembapanSensor <= targetHumidityMax) {
-        humidStatus += "IDEAL";
-      } else {
-        humidStatus += "OK";
-      }
-      lcd.print(humidStatus);
-      break;
+    else if (kelembapanSensor >= targetHumidityMin && kelembapanSensor <= targetHumidityMax)
+    {
+      humidStatus += "IDEAL";
     }
-    case INFO_TEMP: {
-      lcd.setCursor(0, 0);
-      lcd.print("== TEMPERATURE ==");
-      lcd.setCursor(0, 1);
-      String temprStatus = String(suhuSensor, 0) + "C ";
-      if (temperatureControlActive) {
-        temprStatus += "CTRL-ON";
-      } else if (suhuSensor >= targetTemperatureMin && suhuSensor <= targetTemperatureMax) {
-        temprStatus += "IDEAL";
-      } else {
-        temprStatus += "OK";
-      }
-      lcd.print(temprStatus);
-      break;
+    else
+    {
+      humidStatus += "OK";
     }
-    case INFO_HISTORY: {
-      lcd.setCursor(0, 0);
-      lcd.print("== STATUS ==");
-      lcd.setCursor(0, 1);
-      String statusLine = "";
-      statusLine += (isAutoMode ? "AUTO" : "MAN");
-      statusLine += " H:" + pemanasStatus.substring(0, 1);
-      statusLine += " F:" + kipasStatus.substring(0, 1);
-      statusLine += " E:" + exhaustStatus.substring(0, 1);
-      lcd.print(statusLine);
-      break;
+    lcd.print(humidStatus);
+    break;
+  }
+  case INFO_TEMP:
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("== TEMPERATURE ==");
+    lcd.setCursor(0, 1);
+    String temprStatus = String(suhuSensor, 0) + "C ";
+    if (temperatureControlActive)
+    {
+      temprStatus += "CTRL-ON";
     }
+    else if (suhuSensor >= targetTemperatureMin && suhuSensor <= targetTemperatureMax)
+    {
+      temprStatus += "IDEAL";
+    }
+    else
+    {
+      temprStatus += "OK";
+    }
+    lcd.print(temprStatus);
+    break;
+  }
+  case INFO_HISTORY:
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("== STATUS ==");
+    lcd.setCursor(0, 1);
+    String statusLine = "";
+    statusLine += (isAutoMode ? "AUTO" : "MAN");
+    statusLine += " H:" + pemanasStatus.substring(0, 1);
+    statusLine += " F:" + kipasStatus.substring(0, 1);
+    statusLine += " E:" + exhaustStatus.substring(0, 1);
+    lcd.print(statusLine);
+    break;
+  }
   }
 }
 
-void displayErrors() {
-  for (int i = 0; i < errorCount; i++) {
-    if (systemErrors[i].active) {
+void displayErrors()
+{
+  for (int i = 0; i < errorCount; i++)
+  {
+    if (systemErrors[i].active)
+    {
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("!!! ERROR !!!");
       lcd.setCursor(0, 1);
       String errorMsg = systemErrors[i].code;
-      if (errorMsg.length() > 16) {
+      if (errorMsg.length() > 16)
+      {
         errorMsg = errorMsg.substring(0, 16);
       }
-      while (errorMsg.length() < 16) errorMsg += " ";
+      while (errorMsg.length() < 16)
+        errorMsg += " ";
       lcd.print(errorMsg);
       break;
     }
   }
 }
 
-void cycleInfoDisplay() {
-  if (!infoDisplayActive) {
+void cycleInfoDisplay()
+{
+  if (!infoDisplayActive)
+  {
     infoDisplayActive = true;
     currentInfoMode = INFO_SENSORS;
     infoDisplayStart = millis();
-  } else {
-    switch (currentInfoMode) {
-      case INFO_SENSORS: currentInfoMode = INFO_WEIGHTS; break;
-      case INFO_WEIGHTS: currentInfoMode = INFO_WIFI; break;
-      case INFO_WIFI: currentInfoMode = INFO_HUMADITY; break;
-      case INFO_HUMADITY: currentInfoMode = INFO_TEMP; break;
-      case INFO_TEMP: currentInfoMode = INFO_HISTORY; break;
-      case INFO_HISTORY: currentInfoMode = INFO_SENSORS; break;
-      default: currentInfoMode = INFO_SENSORS; break;
+  }
+  else
+  {
+    switch (currentInfoMode)
+    {
+    case INFO_SENSORS:
+      currentInfoMode = INFO_WEIGHTS;
+      break;
+    case INFO_WEIGHTS:
+      currentInfoMode = INFO_WIFI;
+      break;
+    case INFO_WIFI:
+      currentInfoMode = INFO_HUMADITY;
+      break;
+    case INFO_HUMADITY:
+      currentInfoMode = INFO_TEMP;
+      break;
+    case INFO_TEMP:
+      currentInfoMode = INFO_HISTORY;
+      break;
+    case INFO_HISTORY:
+      currentInfoMode = INFO_SENSORS;
+      break;
+    default:
+      currentInfoMode = INFO_SENSORS;
+      break;
     }
     infoDisplayStart = millis();
   }
@@ -2126,7 +2744,8 @@ void cycleInfoDisplay() {
 }
 
 //=============================================================================== Testing ===============================================================================
-void testAllOutputs() {
+void testAllOutputs()
+{
   Serial.println(" Testing Relay 1 (Heater Warm)...");
   digitalWrite(RELAY1_PIN, RELAY_ON);
   delay(1000);
@@ -2164,7 +2783,8 @@ void testAllOutputs() {
   Serial.println("✅ All output tests completed");
 }
 
-void testButtonPins() {
+void testButtonPins()
+{
   Serial.println("\n🔧 TESTING BUTTON PINS...");
   Serial.print(" DOOR (Pin 23): ");
   Serial.println(digitalRead(DOOR_SWITCH) ? "HIGH (OK)" : "LOW");
@@ -2181,31 +2801,42 @@ void testButtonPins() {
   Serial.println("💡 Press RESTART button to restart system!");
 }
 
-void testDHTSensor() {
+void testDHTSensor()
+{
   float testTemp = dht.readTemperature();
   float testHumid = dht.readHumidity();
-  if (isnan(testTemp)) {
+  if (isnan(testTemp))
+  {
     addError("DHT22_TEMP_FAILED", "Temperature sensor check wiring");
     Serial.println("❌ DHT22 temperature sensor ERROR");
-  } else {
+  }
+  else
+  {
     clearError("DHT22_TEMP_FAILED");
     Serial.println("✅ DHT22 temperature sensor OK - Temp: " + String(testTemp) + "°C");
   }
-  if (isnan(testHumid)) {
+  if (isnan(testHumid))
+  {
     addError("DHT22_HUMID_FAILED", "Humidity sensor check wiring");
     Serial.println("❌ DHT22 humidity sensor ERROR");
-  } else {
+  }
+  else
+  {
     clearError("DHT22_HUMID_FAILED");
     Serial.println("✅ DHT22 humidity sensor OK - RH: " + String(testHumid) + "%");
   }
 }
 
-void testLoadCell() {
-  if (scale.is_ready()) {
+void testLoadCell()
+{
+  if (scale.is_ready())
+  {
     scale.set_scale(239.12);
     Serial.println("✅ HX711 load cell initialized");
     clearError("SCALE_NOT_READY");
-  } else {
+  }
+  else
+  {
     addError("SCALE_NOT_READY", "Load cell check wiring");
     Serial.println("❌ HX711 load cell ERROR");
   }
