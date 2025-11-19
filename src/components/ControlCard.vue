@@ -22,58 +22,104 @@
             class="text-sm transition-colors duration-300"
             :class="statusClass"
           >
-            status: {{ statusText }}
+            Status: {{ statusText }}
           </p>
         </div>
       </div>
     </div>
 
-    <button
-      @click="handleToggle"
-      :disabled="!isConnected"
-      class="w-full py-3 rounded-lg font-semibold transition-all duration-300 transform active:scale-95 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
-      :class="buttonClass"
-    >
-      <span class="relative z-10 flex items-center justify-center space-x-2">
-        <component
-          :is="buttonIcon"
-          class="w-5 h-5 transition-transform duration-300 group-hover:scale-110"
-        />
-        <span>{{ buttonText }}</span>
-      </span>
+    <!-- AUTO MODE: Display Power/Condition Info -->
+    <div v-if="isAutoMode" class="space-y-3">
       <div
-        class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"
-      ></div>
-    </button>
-
-    <!-- Connection Warning -->
-    <div
-      v-if="!isConnected"
-      class="mt-3 p-2 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg flex items-center gap-2"
-    >
-      <svg
-        class="w-4 h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
+        class="p-4 rounded-lg transition-all duration-300"
+        :class="autoModeInfoClass"
       >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-        />
-      </svg>
-      <span class="text-xs text-yellow-700 dark:text-yellow-300">
-        Sistem tidak terkoneksi
-      </span>
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            Mode Otomatis
+          </span>
+          <span
+            class="px-2 py-1 rounded-full text-xs font-bold"
+            :class="autoModeBadgeClass"
+          >
+            {{ realStatusFromDevice }}
+          </span>
+        </div>
+
+        <!-- Power Level / Condition Info -->
+        <div class="mt-3">
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="text-gray-600 dark:text-gray-400">
+              {{ powerLabelText }}
+            </span>
+            <span class="font-semibold text-gray-800 dark:text-white">
+              {{ powerValueText }}
+            </span>
+          </div>
+
+          <!-- Progress Bar for Visual Representation -->
+          <div
+            class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden"
+          >
+            <div
+              class="h-full rounded-full transition-all duration-500"
+              :class="powerBarClass"
+              :style="{ width: powerPercentage + '%' }"
+            ></div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Device Info -->
-    <div class="mt-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-      <p class="text-xs text-gray-600 dark:text-gray-400">
-        {{ deviceInfo }}
-      </p>
+    <!-- MANUAL MODE: Display Toggle Button -->
+    <div v-else>
+      <button
+        @click="handleToggle"
+        :disabled="!isConnected"
+        class="w-full py-3 rounded-lg font-semibold transition-all duration-300 transform active:scale-95 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
+        :class="buttonClass"
+      >
+        <span class="relative z-10 flex items-center justify-center space-x-2">
+          <component
+            :is="buttonIcon"
+            class="w-5 h-5 transition-transform duration-300 group-hover:scale-110"
+          />
+          <span>{{ buttonText }}</span>
+        </span>
+        <div
+          class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300"
+        ></div>
+      </button>
+
+      <!-- Connection Warning -->
+      <div
+        v-if="!isConnected"
+        class="mt-3 p-2 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg flex items-center gap-2"
+      >
+        <svg
+          class="w-4 h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          />
+        </svg>
+        <span class="text-xs text-yellow-700 dark:text-yellow-300">
+          Sistem tidak terkoneksi
+        </span>
+      </div>
+
+      <!-- Device Info -->
+      <div class="mt-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+        <p class="text-xs text-gray-600 dark:text-gray-400">
+          {{ deviceInfo }}
+        </p>
+      </div>
     </div>
   </div>
 </template>
@@ -93,7 +139,7 @@ const emit = defineEmits<{
 
 const dryerStore = useDryerStore();
 
-// Check if system is connected (last update within 1 minute)
+// Check if system is connected
 const isConnected = computed(() => {
   const lastUpdate = dryerStore.systemStatus.last_update;
   if (!lastUpdate) return false;
@@ -120,7 +166,56 @@ const isConnected = computed(() => {
   return diffMinutes < 1;
 });
 
-// Get device state from store based on device prop
+// Check if AUTO mode
+const isAutoMode = computed(() => {
+  return dryerStore.controlData.auto_mode !== false;
+});
+
+// Get REAL device status from Firebase status data (bukan dari control data)
+const realStatusFromDevice = computed(() => {
+  if (!isConnected.value) return "Offline";
+
+  const statusData = dryerStore.statusData;
+
+  switch (props.device) {
+    case "heater":
+      // Parse dari status pemanas: "Mati", "Hangat", "Panas", "PROTECTION"
+      return statusData.pemanas || "Unknown";
+
+    case "fan_collector":
+    case "fan_panel":
+      // Parse dari status kipas
+      // Format: "Mati", "Pan & Col aktif (pwr: XX%)", "Hanya Pan (pwr: XX%)", dll
+      const kipasStatus = statusData.kipas || "Mati";
+
+      if (props.device === "fan_collector") {
+        // Fan Collector aktif jika ada "Col" di string
+        if (kipasStatus.includes("Col aktif")) {
+          return "Aktif";
+        }
+        return "Mati";
+      } else {
+        // Fan Panel aktif jika bukan "Mati"
+        if (kipasStatus === "Mati") {
+          return "Mati";
+        }
+        return "Aktif";
+      }
+
+    case "exhaust":
+      // Parse dari status exhaust: "Tutup", "Sedang", "Buka", dll
+      const exhaustStatus = statusData.exhaust || "Tutup";
+      if (exhaustStatus.includes("Tutup")) return "Tutup";
+      if (exhaustStatus.includes("Sedang")) return "Sedang";
+      if (exhaustStatus.includes("Buka")) return "Buka";
+      return exhaustStatus;
+
+    default:
+      return "Unknown";
+  }
+});
+
+// Status dari control data (untuk manual mode)
 const isOn = computed(() => {
   switch (props.device) {
     case "heater":
@@ -136,18 +231,145 @@ const isOn = computed(() => {
   }
 });
 
+// Status text yang ditampilkan
 const statusText = computed(() => {
   if (!isConnected.value) return "Offline";
-  return isOn.value ? "Hidup" : "Mati";
+
+  if (isAutoMode.value) {
+    // AUTO mode: tampilkan status real dari device
+    return realStatusFromDevice.value;
+  } else {
+    // MANUAL mode: tampilkan status dari control data
+    return isOn.value ? "Hidup" : "Mati";
+  }
 });
 
+// Status color
 const statusClass = computed(() => {
   if (!isConnected.value) return "text-gray-500 dark:text-gray-400";
-  return isOn.value
-    ? "text-green-600 dark:text-green-400 font-semibold"
-    : "text-gray-600 dark:text-gray-400";
+
+  const status = realStatusFromDevice.value.toLowerCase();
+
+  // Color based on actual status
+  if (status.includes("mati") || status.includes("tutup")) {
+    return "text-gray-600 dark:text-gray-400";
+  }
+  if (
+    status.includes("aktif") ||
+    status.includes("hidup") ||
+    status.includes("panas") ||
+    status.includes("hangat") ||
+    status.includes("buka")
+  ) {
+    return "text-green-600 dark:text-green-400 font-semibold";
+  }
+  if (status.includes("sedang")) {
+    return "text-yellow-600 dark:text-yellow-400 font-semibold";
+  }
+  if (status.includes("protection")) {
+    return "text-red-600 dark:text-red-400 font-semibold";
+  }
+
+  return "text-gray-600 dark:text-gray-400";
 });
 
+// Parse power percentage dari kipas status
+const powerPercentage = computed(() => {
+  if (props.device === "fan_panel" || props.device === "fan_collector") {
+    const kipasStatus = dryerStore.statusData.kipas || "";
+    // Extract percentage: "pwr: 85%"
+    const match = kipasStatus.match(/pwr:\s*(\d+)%/);
+    if (match) {
+      return parseInt(match[1]);
+    }
+  }
+
+  // For heater
+  if (props.device === "heater") {
+    const heaterStatus = realStatusFromDevice.value.toLowerCase();
+    if (heaterStatus === "mati") return 0;
+    if (heaterStatus === "hangat") return 50;
+    if (heaterStatus === "panas") return 100;
+  }
+
+  // For exhaust
+  if (props.device === "exhaust") {
+    const exhaustStatus = realStatusFromDevice.value.toLowerCase();
+    if (exhaustStatus.includes("tutup")) return 0;
+    if (exhaustStatus.includes("sedang")) return 50;
+    if (exhaustStatus.includes("buka")) return 100;
+  }
+
+  return 0;
+});
+
+// Power label text
+const powerLabelText = computed(() => {
+  if (props.device === "heater") return "Mode Pemanas";
+  if (props.device === "fan_panel" || props.device === "fan_collector")
+    return "Kecepatan";
+  if (props.device === "exhaust") return "Bukaan Valve";
+  return "Status";
+});
+
+// Power value text
+const powerValueText = computed(() => {
+  if (props.device === "fan_panel" || props.device === "fan_collector") {
+    return `${powerPercentage.value}%`;
+  }
+  return realStatusFromDevice.value;
+});
+
+// Power bar color class
+const powerBarClass = computed(() => {
+  const percentage = powerPercentage.value;
+  if (percentage === 0) return "bg-gray-400 dark:bg-gray-600";
+  if (percentage <= 30) return "bg-yellow-500 dark:bg-yellow-600";
+  if (percentage <= 70) return "bg-blue-500 dark:bg-blue-600";
+  return "bg-green-500 dark:bg-green-600";
+});
+
+// Auto mode info background
+const autoModeInfoClass = computed(() => {
+  const status = realStatusFromDevice.value.toLowerCase();
+  if (status.includes("mati") || status.includes("tutup")) {
+    return "bg-gray-50 dark:bg-gray-700";
+  }
+  if (
+    status.includes("aktif") ||
+    status.includes("hidup") ||
+    status.includes("panas") ||
+    status.includes("buka")
+  ) {
+    return "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700";
+  }
+  if (status.includes("hangat") || status.includes("sedang")) {
+    return "bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700";
+  }
+  return "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700";
+});
+
+// Auto mode badge class
+const autoModeBadgeClass = computed(() => {
+  const status = realStatusFromDevice.value.toLowerCase();
+  if (status.includes("mati") || status.includes("tutup")) {
+    return "bg-gray-400 text-white";
+  }
+  if (
+    status.includes("aktif") ||
+    status.includes("hidup") ||
+    status.includes("panas") ||
+    status.includes("buka")
+  ) {
+    return "bg-green-500 text-white";
+  }
+  if (status.includes("hangat") || status.includes("sedang")) {
+    return "bg-yellow-500 text-white";
+  }
+  return "bg-blue-500 text-white";
+});
+
+// Manual mode button class
 const buttonClass = computed(() => {
   if (!isConnected.value) {
     return "bg-gray-400 text-white cursor-not-allowed";
@@ -171,16 +393,23 @@ const iconBackgroundClass = computed(() => {
     return "bg-gradient-to-br from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-700";
   }
 
+  // Gunakan status real untuk menentukan warna
+  const status = realStatusFromDevice.value.toLowerCase();
+  const isActive =
+    !status.includes("mati") &&
+    !status.includes("tutup") &&
+    status !== "offline";
+
   if (titleLower.includes("heater"))
-    return isOn.value
+    return isActive
       ? "bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900 dark:to-red-800"
       : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600";
   if (titleLower.includes("fan"))
-    return isOn.value
+    return isActive
       ? "bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800"
       : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600";
   if (titleLower.includes("exhaust"))
-    return isOn.value
+    return isActive
       ? "bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800"
       : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600";
   return "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600";
@@ -194,16 +423,23 @@ const iconColorClass = computed(() => {
     return "text-gray-500 dark:text-gray-400";
   }
 
+  // Gunakan status real
+  const status = realStatusFromDevice.value.toLowerCase();
+  const isActive =
+    !status.includes("mati") &&
+    !status.includes("tutup") &&
+    status !== "offline";
+
   if (titleLower.includes("heater"))
-    return isOn.value
+    return isActive
       ? "text-red-600 dark:text-red-300"
       : "text-gray-600 dark:text-gray-400";
   if (titleLower.includes("fan"))
-    return isOn.value
+    return isActive
       ? "text-blue-600 dark:text-blue-300"
       : "text-gray-600 dark:text-gray-400";
   if (titleLower.includes("exhaust"))
-    return isOn.value
+    return isActive
       ? "text-green-600 dark:text-green-300"
       : "text-gray-600 dark:text-gray-400";
   return "text-gray-600 dark:text-gray-400";
@@ -212,6 +448,11 @@ const iconColorClass = computed(() => {
 // Device icon
 const deviceIcon = computed(() => {
   const titleLower = props.title.toLowerCase();
+  const status = realStatusFromDevice.value.toLowerCase();
+  const isActive =
+    !status.includes("mati") &&
+    !status.includes("tutup") &&
+    status !== "offline";
 
   // Heater icon
   if (titleLower.includes("heater")) {
@@ -230,7 +471,7 @@ const deviceIcon = computed(() => {
     );
   }
 
-  // Fan icon
+  // Fan icon with spin animation when active
   if (titleLower.includes("fan")) {
     return h(
       "svg",
@@ -238,7 +479,7 @@ const deviceIcon = computed(() => {
         fill: "currentColor",
         viewBox: "0 0 24 24",
         class:
-          isOn.value && isConnected.value ? "w-6 h-6 animate-spin" : "w-6 h-6",
+          isActive && isConnected.value ? "w-6 h-6 animate-spin" : "w-6 h-6",
       },
       [
         h("path", {
@@ -285,7 +526,7 @@ const deviceIcon = computed(() => {
   );
 });
 
-// Button icon
+// Button icon (for manual mode)
 const buttonIcon = computed(() => {
   if (isOn.value) {
     // Power off icon
@@ -329,7 +570,7 @@ const buttonIcon = computed(() => {
 });
 
 const handleToggle = () => {
-  if (!isConnected.value) return;
+  if (!isConnected.value || isAutoMode.value) return;
   emit("toggle");
 };
 </script>

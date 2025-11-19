@@ -376,17 +376,17 @@
                           <th
                             class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase"
                           >
-                            Rata² Suhu
+                            Rata Suhu
                           </th>
                           <th
                             class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase"
                           >
-                            Rata² RH
+                            Rata Kelembapan
                           </th>
                           <th
                             class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase"
                           >
-                            Rata² KA
+                            Rata Kadar Air
                           </th>
                           <th
                             class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase"
@@ -449,10 +449,10 @@
                     <span>Download PDF</span>
                   </button>
                   <button
-                    @click="deleteCurrentSession"
-                    class="flex-1 px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center justify-center gap-2"
+                    @click="viewDetailData(selectedSessionId)"
+                    class="flex-1 px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition text-xs font-semibold"
                   >
-                    <span>Delete</span>
+                    Detail
                   </button>
                 </div>
               </div>
@@ -628,10 +628,10 @@
                             Suhu
                           </th>
                           <th class="px-4 py-3 text-left text-xs font-medium">
-                            RH
+                            Kelembapan
                           </th>
                           <th class="px-4 py-3 text-left text-xs font-medium">
-                            KA
+                            Kadar Air
                           </th>
                           <th class="px-4 py-3 text-left text-xs font-medium">
                             Berat
@@ -649,7 +649,7 @@
                             Exhaust
                           </th>
                           <th class="px-4 py-3 text-left text-xs font-medium">
-                            Ket
+                            Keterangan
                           </th>
                         </tr>
                       </thead>
@@ -914,7 +914,9 @@ const downloadRecap30PDF = () => {
   ]);
   autoTable(doc, {
     startY: 25,
-    head: [["No", "Interval", "Suhu", "RH", "KA", "Data", "Error"]],
+    head: [
+      ["No", "Interval", "Suhu", "Kelembapan", "Kdar Air", "Data", "Error"],
+    ],
     body: td,
   });
   doc.save(`rekap-30min-${selectedSessionId.value}.pdf`);
@@ -949,10 +951,10 @@ const downloadDetailPDF = () => {
         "KA",
         "Berat",
         "Status",
-        "H",
-        "F",
-        "E",
-        "Ket",
+        "Heater",
+        "Fan",
+        "Exhaust",
+        "Keterangan",
       ],
     ],
     body: td,

@@ -15,35 +15,6 @@
       <Header @toggleSidebar="toggleSidebar" />
       <main class="p-4 sm:p-6 lg:p-8">
         <div class="max-w-7xl mx-auto space-y-6 sm:space-y-8">
-          <!-- Connection Status Banner -->
-          <div
-            v-if="!isConnected"
-            class="bg-red-50 dark:bg-red-900 border-2 border-red-500 rounded-xl p-4 flex items-center space-x-3"
-          >
-            <svg
-              class="w-6 h-6 text-red-600 dark:text-red-400 animate-pulse"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"
-              />
-            </svg>
-            <div class="flex-1">
-              <p class="font-bold text-red-800 dark:text-red-200">
-                Sistem Tidak Terhubung
-              </p>
-              <p class="text-sm text-red-700 dark:text-red-300">
-                Kontrol tidak dapat digunakan. Mohon tunggu hingga sistem
-                terhubung kembali.
-              </p>
-            </div>
-          </div>
-
           <!-- Control Mode Toggle -->
           <div
             class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 transition-colors"
@@ -203,7 +174,16 @@
           </div>
 
           <!-- Auto Mode Info -->
-          <div v-if="isAutoMode && isConnected"></div>
+          <div v-if="isAutoMode && isConnected">
+            <div
+              class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
+            >
+              <ControlCard title="Heater" device="heater" />
+              <ControlCard title="Fan Collector" device="fan_collector" />
+              <ControlCard title="Fan Panel" device="fan_panel" />
+              <ControlCard title="Exhaust" device="exhaust" />
+            </div>
+          </div>
 
           <!-- Additional Settings -->
           <AdditionalSettings />

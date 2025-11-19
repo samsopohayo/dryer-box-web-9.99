@@ -56,19 +56,20 @@
             <div class="flex items-center justify-between flex-wrap gap-4">
               <!-- Weather Info -->
               <div class="flex items-center space-x-4">
-                <div
-                  class="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center"
-                >
-                  <component :is="weatherIcon" class="w-10 h-10 text-white" />
-                </div>
-                <div>
-                  <p class="text-white text-sm opacity-90">Cuaca Saat Ini</p>
-                  <p class="text-white text-2xl font-bold">
-                    {{ weatherDisplay }}
-                  </p>
-                  <p class="text-white text-sm opacity-75">
-                    {{ locationStore.location.city }} •
-                    {{ locationStore.weather.temperature }}°C
+                <div class="flex items-center space-x-2">
+                  <svg
+                    class="w-5 h-5 text-white"
+                    :class="collectorActive ? 'animate-spin' : ''"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M12,11A1,1 0 0,0 11,12A1,1 0 0,0 12,13A1,1 0 0,0 13,12A1,1 0 0,0 12,11M12.5,2C17,2 17.11,5.57 14.75,6.75C13.76,7.24 13.32,8.29 13.13,9.22C13.61,9.42 14.03,9.73 14.35,10.13C18.05,8.13 22.03,8.92 22.03,12.5C22.03,17 18.46,17.1 17.28,14.73C16.78,13.74 15.72,13.3 14.79,13.11C14.59,13.59 14.28,14 13.88,14.34C15.87,18.03 15.08,22 11.5,22C7,22 6.91,18.42 9.27,17.24C10.25,16.75 10.69,15.71 10.89,14.79C10.4,14.59 9.97,14.27 9.65,13.87C5.96,15.85 2,15.07 2,11.5C2,7 5.56,6.89 6.74,9.26C7.24,10.25 8.29,10.68 9.22,10.87C9.41,10.39 9.73,9.97 10.14,9.65C8.15,5.96 8.94,2 12.5,2Z"
+                    />
+                  </svg>
+                  <p class="text-white text-sm">
+                    <strong>Fan Collector:</strong>
+                    {{ collectorStatusText }}
                   </p>
                 </div>
               </div>
@@ -94,36 +95,6 @@
                     ></div>
                   </div>
                 </div>
-
-                <div class="text-right">
-                  <p class="text-white text-sm opacity-90">Status Sistem</p>
-                  <p class="text-white text-lg font-bold mt-1">
-                    {{ dryerStore.statusData.pengeringan }}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Collector Fan Status (Weather-based) -->
-            <div
-              v-if="showCollectorStatus"
-              class="mt-4 pt-4 border-t border-white/20"
-            >
-              <div class="flex items-center space-x-2">
-                <svg
-                  class="w-5 h-5 text-white"
-                  :class="collectorActive ? 'animate-spin' : ''"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M12,11A1,1 0 0,0 11,12A1,1 0 0,0 12,13A1,1 0 0,0 13,12A1,1 0 0,0 12,11M12.5,2C17,2 17.11,5.57 14.75,6.75C13.76,7.24 13.32,8.29 13.13,9.22C13.61,9.42 14.03,9.73 14.35,10.13C18.05,8.13 22.03,8.92 22.03,12.5C22.03,17 18.46,17.1 17.28,14.73C16.78,13.74 15.72,13.3 14.79,13.11C14.59,13.59 14.28,14 13.88,14.34C15.87,18.03 15.08,22 11.5,22C7,22 6.91,18.42 9.27,17.24C10.25,16.75 10.69,15.71 10.89,14.79C10.4,14.59 9.97,14.27 9.65,13.87C5.96,15.85 2,15.07 2,11.5C2,7 5.56,6.89 6.74,9.26C7.24,10.25 8.29,10.68 9.22,10.87C9.41,10.39 9.73,9.97 10.14,9.65C8.15,5.96 8.94,2 12.5,2Z"
-                  />
-                </svg>
-                <p class="text-white text-sm">
-                  <strong>Fan Collector:</strong>
-                  {{ collectorStatusText }}
-                </p>
               </div>
             </div>
           </div>
