@@ -291,8 +291,6 @@ void handleInfoButton();
 void handleRestartButton();
 
 // Timer Functions
-void updateTimer();
-void syncTimerToFirebase();
 void checkTimerFromFirebase();
 
 // Control Mode Functions
@@ -358,7 +356,7 @@ String generateSessionId()
 void setup()
 {
     Serial.begin(115200);
-    Serial.println("\n🚀 SISTEM PENGERING ESP32 v4.0 (SERVO FIXED)");
+    Serial.println("\nSISTEM PENGERING ESP32 v4.0 (SERVO FIXED)");
     Serial.println("===================================");
     Serial.println("Initializing enhanced system with PWM channel isolation");
 
@@ -477,14 +475,11 @@ void loop()
     // Check control mode from Firebase
     checkControlMode();
 
-    // Check timer updates
-    if (timerEnabled && !timerPaused)
+    // CHECK TIMER STATUS
+    if (systemRunning || timerEnabled)
     {
-        updateTimer();
+        checkTimerFromFirebase();
     }
-
-    // web timer updates
-    checkTimerFromFirebase();
 
     // Update door status
     updateDoorStatus();
@@ -667,7 +662,7 @@ void restartSystem()
     manualFanPanControl = false;
     manualExhaustControl = false;
 
-    // RESET TIMER dengan Flags
+    // RESET TIMER
     timerEnabled = false;
     timerDuration = 0;
     timerRemaining = 0;
@@ -675,12 +670,9 @@ void restartSystem()
     timerCompleted = false;
     timerStoppedManually = false;
     lastTimerUpdate = 0;
-    lastTimerSync = 0;
 
     // Sync timer reset ke Firebase
     Firebase.setBool(firebaseData, "/timer/enabled", false);
-    delay(50);
-    Firebase.setInt(firebaseData, "/timer/duration", 0);
     delay(50);
     Firebase.setInt(firebaseData, "/timer/remaining", 0);
     delay(50);
@@ -703,6 +695,7 @@ void restartSystem()
     restartButton = {false, false, 0, 0, 0, false};
 
     Serial.println("System restart completed - Ready for new process");
+    Serial.println("Timer system reset - Awaiting web commands");
 
     // Send restart status to Firebase
     sendSystemStatus("restarted system");
@@ -766,7 +759,6 @@ void switchToAutoMode()
     {
         timerEnabled = false;
         timerPaused = false;
-        syncTimerToFirebase();
     }
 
     if (systemRunning)
@@ -855,226 +847,212 @@ void switchToManualMode()
 }
 
 //=============================================================================== TIMER FUNCTIONS ===============================================================================
-void updateTimer()
-{
-    unsigned long currentTime = millis();
 
-    // Update timer setiap 1 detik
-    if (currentTime - lastTimerUpdate >= 1000)
-    {
-        lastTimerUpdate = currentTime;
-
-        if (timerRemaining > 0)
-        {
-            timerRemaining--;
-
-            // Sync ke Firebase setiap 5 detik atau 10 detik terakhir
-            if (timerRemaining % 5 == 0 || timerRemaining <= 10)
-            {
-                syncTimerToFirebase();
-            }
-
-            // Log setiap 30 detik
-            if (timerRemaining % 30 == 0)
-            {
-                Serial.println("Timer remaining: " + String(timerRemaining) + "s");
-            }
-
-            // Warning 1 menit terakhir
-            if (timerRemaining == 60)
-            {
-                Serial.println("Timer: 1 minute remaining!");
-                lcd.clear();
-                lcd.setCursor(0, 0);
-                lcd.print("! 1 MIN LEFT !");
-                delay(1000);
-            }
-
-            // Warning 10 detik terakhir dengan countdown suara (beep)
-            if (timerRemaining <= 10 && timerRemaining > 0)
-            {
-                Serial.println("Timer: " + String(timerRemaining) + " seconds!");
-            }
-
-            // Timer selesai NATURAL (habis waktunya)
-            if (timerRemaining == 0)
-            {
-                Serial.println("\n========================================");
-                Serial.println("TIMER COMPLETED!");
-                Serial.println("========================================");
-
-                timerEnabled = false;
-                timerPaused = false;
-                timerCompleted = true;
-                timerStoppedManually = false;
-
-                // Sync ke Firebase dengan status completed
-                Firebase.setBool(firebaseData, "/timer/enabled", false);
-                delay(50);
-                Firebase.setInt(firebaseData, "/timer/duration", 0);
-                delay(50);
-                Firebase.setInt(firebaseData, "/timer/remaining", 0);
-                delay(50);
-                Firebase.setBool(firebaseData, "/timer/completed", true);
-                delay(50);
-
-                // Display completion message
-                lcd.clear();
-                lcd.setCursor(0, 0);
-                lcd.print("TIMER COMPLETE!");
-                lcd.setCursor(0, 1);
-                lcd.print("Duration done");
-
-                for (int i = 0; i < 3; i++)
-                {
-                    delay(500);
-                }
-
-                delay(3000);
-
-                Serial.println("Timer completed successfully!");
-                Serial.println("All timer flags reset");
-            }
-        }
-    }
-}
-
-// Sync Timer ke Firebase - FIXED
-void syncTimerToFirebase()
-{
-    if (WiFi.status() != WL_CONNECTED)
-        return;
-
-    unsigned long currentTime = millis();
-
-    if (currentTime - lastTimerSync < 500)
-        return;
-
-    lastTimerSync = currentTime;
-
-    Firebase.setBool(firebaseData, "/timer/enabled", timerEnabled);
-    delay(50);
-    Firebase.setInt(firebaseData, "/timer/duration", timerDuration);
-    delay(50);
-    Firebase.setInt(firebaseData, "/timer/remaining", timerRemaining);
-    delay(50);
-    Firebase.setBool(firebaseData, "/timer/completed", timerCompleted);
-    delay(50);
-    Firebase.setBool(firebaseData, "/timer/stopped_manually", timerStoppedManually);
-    delay(50);
-
-    Serial.println("Timer synced to Firebase");
-    Serial.println("  Enabled: " + String(timerEnabled));
-    Serial.println("  Duration: " + String(timerDuration) + "s");
-    Serial.println("  Remaining: " + String(timerRemaining) + "s");
-    Serial.println("  Completed: " + String(timerCompleted));
-    Serial.println("  Stopped Manually: " + String(timerStoppedManually));
-}
-
-// Check Timer dari Firebase - FIXED
+// Check Timer dari Firebase
 void checkTimerFromFirebase()
 {
     if (WiFi.status() != WL_CONNECTED)
         return;
 
     static unsigned long lastCheck = 0;
-    if (millis() - lastCheck < 2000)
+    if (millis() - lastCheck < 1000)
         return;
 
     lastCheck = millis();
 
-    // Check enabled status
+    // Check timer enabled status
     if (Firebase.getBool(firebaseData, "/timer/enabled"))
     {
         bool newEnabled = firebaseData.boolData();
 
-        // Timer baru dinyalakan dari web
+        // CASE 1: TIMER DIMULAI
         if (newEnabled && !timerEnabled)
         {
             delay(50);
 
-            // Ambil duration dan remaining
-            if (Firebase.getInt(firebaseData, "/timer/duration"))
+            if (Firebase.getInt(firebaseData, "/timer/remaining"))
             {
-                timerDuration = firebaseData.intData();
-                delay(50);
+                int newRemaining = firebaseData.intData();
 
-                if (Firebase.getInt(firebaseData, "/timer/remaining"))
+                if (newRemaining > 0)
                 {
-                    timerRemaining = firebaseData.intData();
+                    timerRemaining = newRemaining;
+                    timerEnabled = true;
+                    timerPaused = false;
+                    timerCompleted = false;
+                    timerStoppedManually = false;
+                    lastTimerUpdate = millis();
 
-                    // Validasi nilai
-                    if (timerRemaining > 0 && timerRemaining <= timerDuration)
+                    Serial.println("\n========================================");
+                    Serial.println("  TIMER STARTED FROM WEB");
+                    Serial.println("  Remaining: " + String(timerRemaining) + "s");
+                    Serial.println("  ESP32 will monitor remaining from web");
+                    Serial.println("========================================");
+
+                    lcd.clear();
+                    lcd.setCursor(0, 0);
+                    lcd.print("TIMER STARTED");
+                    lcd.setCursor(0, 1);
+
+                    // Format tampilan waktu
+                    int hours = timerRemaining / 3600;
+                    int minutes = (timerRemaining % 3600) / 60;
+                    int seconds = timerRemaining % 60;
+
+                    char timeBuffer[17];
+                    if (hours > 0)
                     {
-                        timerEnabled = true;
-                        timerPaused = false;
-                        timerCompleted = false;
-                        timerStoppedManually = false;
-                        lastTimerUpdate = millis();
-
-                        Serial.println("\n========================================");
-                        Serial.println("TIMER STARTED FROM WEB");
-                        Serial.println("  Duration: " + String(timerDuration) + "s");
-                        Serial.println("  Remaining: " + String(timerRemaining) + "s");
-                        Serial.println("========================================");
-
-                        lcd.clear();
-                        lcd.setCursor(0, 0);
-                        lcd.print("TIMER STARTED");
-                        lcd.setCursor(0, 1);
-
-                        // Format tampilan waktu
-                        int hours = timerRemaining / 3600;
-                        int minutes = (timerRemaining % 3600) / 60;
-                        int seconds = timerRemaining % 60;
-
-                        char timeBuffer[17];
-                        if (hours > 0)
-                        {
-                            sprintf(timeBuffer, "%02d:%02d:%02d", hours, minutes, seconds);
-                        }
-                        else
-                        {
-                            sprintf(timeBuffer, "%02d:%02d", minutes, seconds);
-                        }
-                        lcd.print(timeBuffer);
-
-                        delay(2000);
+                        sprintf(timeBuffer, "%02d:%02d:%02d", hours, minutes, seconds);
                     }
+                    else
+                    {
+                        sprintf(timeBuffer, "%02d:%02d", minutes, seconds);
+                    }
+                    lcd.print(timeBuffer);
+
+                    delay(2000);
                 }
             }
         }
-        // Timer dimatikan dari web (MANUAL STOP)
+
+        // CASE 2: TIMER BERJALAN
+        else if (newEnabled && timerEnabled)
+        {
+            delay(50);
+            if (Firebase.getInt(firebaseData, "/timer/remaining"))
+            {
+                int webRemaining = firebaseData.intData();
+
+                if ((int)webRemaining - (int)timerRemaining > 2 || (int)timerRemaining - (int)webRemaining > 2)
+                {
+                    Serial.println("  Timer update from WEB: " + String(webRemaining) + "s (was " + String(timerRemaining) + "s)");
+                    timerRemaining = webRemaining;
+                }
+
+                if (webRemaining == 0 && timerRemaining != 0)
+                {
+                    Serial.println("\n========================================");
+                    Serial.println("TIMER COMPLETED NATURALLY!");
+                    Serial.println("========================================");
+
+                    timerEnabled = false;
+                    timerPaused = false;
+                    timerCompleted = true;
+                    timerStoppedManually = false;
+                    timerRemaining = 0;
+
+                    lcd.clear();
+                    lcd.setCursor(0, 0);
+                    lcd.print("TIMER COMPLETE!");
+                    lcd.setCursor(0, 1);
+                    lcd.print("Duration done");
+
+                    delay(3000);
+                }
+            }
+        }
+
+        // CASE 3: TIMER DIMATIKAN
         else if (!newEnabled && timerEnabled)
         {
-            Serial.println("\n========================================");
-            Serial.println(" TIMER STOPPED MANUALLY FROM WEB");
-            Serial.println(" Remaining time: " + String(timerRemaining) + "s");
-            Serial.println("========================================");
-
-            timerEnabled = false;
-            timerPaused = false;
-            timerCompleted = false;
-            timerStoppedManually = true;
-
-            int remainingBeforeStop = timerRemaining;
-
-            timerRemaining = 0;
-            timerDuration = 0;
-
-            Firebase.setBool(firebaseData, "/timer/stopped_manually", true);
-            delay(50);
-            Firebase.setInt(firebaseData, "/timer/remaining_before_stop", remainingBeforeStop);
+            int remainingBeforeStop = 0;
             delay(50);
 
-            lcd.clear();
-            lcd.setCursor(0, 0);
-            lcd.print("TIMER STOPPED");
-            lcd.setCursor(0, 1);
-            lcd.print("Manually stopped");
-            delay(2000);
+            if (Firebase.getInt(firebaseData, "/timer/remaining_before_stop"))
+            {
+                remainingBeforeStop = firebaseData.intData();
+            }
+            delay(50);
+
+            bool stoppedManually = false;
+            if (Firebase.getBool(firebaseData, "/timer/stopped_manually"))
+            {
+                stoppedManually = firebaseData.boolData();
+            }
+
+            if (stoppedManually)
+            {
+                Serial.println("\n========================================");
+                Serial.println("  TIMER STOPPED MANUALLY FROM WEB");
+                Serial.println("  Remaining before stop: " + String(remainingBeforeStop) + "s");
+                Serial.println("========================================");
+
+                timerEnabled = false;
+                timerPaused = false;
+                timerCompleted = false;
+                timerStoppedManually = true;
+                timerRemaining = 0;
+
+                lcd.clear();
+                lcd.setCursor(0, 0);
+                lcd.print("TIMER STOPPED");
+                lcd.setCursor(0, 1);
+                lcd.print("Manually stopped");
+                delay(2000);
+            }
+            else
+            {
+                Serial.println("Timer paused by WEB");
+                timerEnabled = false;
+                timerPaused = true;
+                timerRemaining = remainingBeforeStop;
+            }
         }
     }
+}
+
+// Menjalankan fungsi timer ke akuator
+void applyTimerControls()
+{
+    Serial.println("\n=== TIMER CONTROL MODE (Device Running) ===");
+
+    int hours = timerRemaining / 3600;
+    int minutes = (timerRemaining % 3600) / 60;
+    int seconds = timerRemaining % 60;
+
+    char timeBuffer[20];
+    sprintf(timeBuffer, "%02d:%02d:%02d", hours, minutes, seconds);
+    Serial.println("  Timer remaining: " + String(timeBuffer));
+
+    if (!manualHeaterControl)
+    {
+        digitalWrite(HEATER1_PIN, HEATER_ON);
+        digitalWrite(HEATER2_PIN, HEATER_ON);
+        pemanasStatus = "Timer-ON";
+    }
+
+    if (!manualFanPanControl && !manualFanColControl)
+    {
+        ledcWrite(FANHEATPAN1, 255);
+        kipasStatus = "Timer-ON";
+
+        bool kondisiCerah = (weatherMain == "cerah" || weatherMain == "berawan");
+        time_t now = time(nullptr);
+        struct tm *ptm = localtime(&now);
+        int jamSekarang = ptm->tm_hour;
+        bool jamKolektor = (jamSekarang >= 6 && jamSekarang < 17);
+
+        if (kondisiCerah && jamKolektor)
+        {
+            ledcWrite(FANHEATCOL2, 255);
+            kipasStatus = "Timer-ON (Pan & Col)";
+        }
+        else
+        {
+            ledcWrite(FANHEATCOL2, 0);
+            kipasStatus = "Timer-ON (Pan only)";
+        }
+    }
+
+    if (!manualExhaustControl)
+    {
+        ledcWrite(EXHAUST_PIN, 255);
+        exhaustServo.write(90);
+        exhaustStatus = "Timer-ON";
+    }
+
+    controlSteamPusher(true);
+    Serial.println("  All actuators running in timer mode");
 }
 
 //=============================================================================== MAIN LOGIC SISTEM ===============================================================================
@@ -1142,8 +1120,8 @@ void checkObjectWeight()
                 if (millis() - stableStartTime >= 4000)
                 {
                     beratAwal = weight;
-                    Serial.println("📦 Object detected");
-                    Serial.println("📦 Initial weight: " + String(beratAwal, 1) + " gram");
+                    Serial.println("Object detected");
+                    Serial.println("Initial weight: " + String(beratAwal, 1) + " gram");
                     currentState = WAIT_START;
                     processStatus = "Siap";
                     lcd.clear();
@@ -1171,7 +1149,7 @@ void checkObjectWeight()
 
 void startDryingProcess()
 {
-    Serial.println("\n🚀 === STARTING DRYING PROCESS ===");
+    Serial.println("\n=== STARTING DRYING PROCESS ===");
     sessionId = generateSessionId();
     Serial.println(" Session ID: " + sessionId);
     Serial.println(" Initial weight: " + String(beratAwal, 1) + " gram");
@@ -1233,7 +1211,6 @@ void checkProcessCompletion()
         {
             timerEnabled = false;
             timerPaused = false;
-            syncTimerToFirebase();
         }
         turnOffAllOutputs();
         lcd.clear();
@@ -1476,67 +1453,10 @@ void applyControls()
     }
 }
 
-//=============================================================================== FUNCTION TIMER CONTROLS ===============================================================================
-void applyTimerControls()
-{
-    Serial.println("\n=== TIMER CONTROL MODE ===");
-
-    // Format dan tampilkan sisa waktu
-    int hours = timerRemaining / 3600;
-    int minutes = (timerRemaining % 3600) / 60;
-    int seconds = timerRemaining % 60;
-
-    char timeBuffer[20];
-    sprintf(timeBuffer, "%02d:%02d:%02d", hours, minutes, seconds);
-    Serial.println("  Timer remaining: " + String(timeBuffer));
-
-    // Kontrol perangkat berdasarkan manual override atau default ON
-    if (!manualHeaterControl)
-    {
-        digitalWrite(HEATER1_PIN, HEATER_ON);
-        digitalWrite(HEATER2_PIN, HEATER_ON);
-        pemanasStatus = "Timer-ON";
-    }
-
-    if (!manualFanPanControl && !manualFanColControl)
-    {
-        ledcWrite(FANHEATPAN1, 255);
-        kipasStatus = "Timer-ON";
-
-        // Logika kolektor berdasarkan cuaca dan waktu
-        bool kondisiCerah = (weatherMain == "cerah" || weatherMain == "berawan");
-        time_t now = time(nullptr);
-        struct tm *ptm = localtime(&now);
-        int jamSekarang = ptm->tm_hour;
-        bool jamKolektor = (jamSekarang >= 6 && jamSekarang < 17);
-
-        if (kondisiCerah && jamKolektor)
-        {
-            ledcWrite(FANHEATCOL2, 255);
-            kipasStatus = "Timer-ON (Pan & Col)";
-        }
-        else
-        {
-            ledcWrite(FANHEATCOL2, 0);
-            kipasStatus = "Timer-ON (Pan only)";
-        }
-    }
-
-    if (!manualExhaustControl)
-    {
-        ledcWrite(EXHAUST_PIN, 255);
-        exhaustServo.write(90);
-        exhaustStatus = "Timer-ON";
-    }
-
-    controlSteamPusher(true);
-    Serial.println("  All actuators running in timer mode");
-}
-
 //=============================================================================== FUNCTION FUZZY ALL ===============================================================================
 void applyFuzzyLogicControls()
 {
-    Serial.println("\n🧠 === FUZZY LOGIC CONTROL MODE (AUTO) ===");
+    Serial.println("\n=== FUZZY LOGIC CONTROL MODE (AUTO) ===");
     fuzzy->setInput(1, suhuSensor);
     fuzzy->setInput(2, kadarAir);
     fuzzy->setInput(3, kelembapanSensor);
