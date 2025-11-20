@@ -43,10 +43,14 @@ export interface WeatherData {
   temp: number;
 }
 
+// UPDATED: TimerData dengan completion detection
 export interface TimerData {
   enabled: boolean;
   duration: number;
   remaining: number;
+  completed?: boolean; // True jika timer selesai natural
+  stopped_manually?: boolean; // True jika dihentikan manual
+  remaining_before_stop?: number; // Sisa waktu sebelum di-stop
 }
 
 export interface SystemStatus {
