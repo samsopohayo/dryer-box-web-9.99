@@ -1,5 +1,8 @@
-// FILE: src/stores/timer.ts (FIXED - Proper Completion Detection)
+// FILE: src/stores/timer.ts (FIXED - Web-Driven Timer Logic)
 // ============================================
+// Web application melakukan SEMUA countdown logic
+// ESP32 hanya menerima status dan monitor
+
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { database } from "@/firebase/config";
@@ -24,9 +27,9 @@ export const useTimerStore = defineStore("timer", () => {
   let currentSessionId = "";
   let completionTimeout: number | null = null;
   let stopTimeout: number | null = null;
+  let countdownInterval: number | null = null; // ✅ Web melakukan countdown
 
   const timerDisplay = computed(() => {
-    // Selalu tampilkan dari timerData.remaining (yang di-update oleh ESP32)
     const timeToDisplay = timerData.value.remaining;
 
     const days = Math.floor(timeToDisplay / 86400);
@@ -46,16 +49,16 @@ export const useTimerStore = defineStore("timer", () => {
   });
 
   const initializeListener = () => {
-    // Listen untuk perubahan session - reset timer jika session baru
+    // Listen untuk session aktif - reset timer jika session baru
     onValue(dbRef(database, "system/current_session"), (snapshot) => {
       if (snapshot.exists()) {
         const newSessionId = snapshot.val();
 
-        // Jika session berubah (session baru dimulai), reset timer
         if (newSessionId && newSessionId !== currentSessionId) {
           currentSessionId = newSessionId;
 
-          // Reset timer state
+          // Reset timer saat session baru
+          stopCountdown();
           isRunning.value = false;
           isPaused.value = false;
           showCompletionMessage.value = false;
@@ -75,121 +78,66 @@ export const useTimerStore = defineStore("timer", () => {
       }
     });
 
-    // Listen untuk timer data dari Firebase (di-update oleh ESP32)
+    // Listen untuk timer status dari ESP32 (hanya untuk sync status)
+    // Bukan untuk countdown, countdown di-handle di web
     onValue(dbRef(database, "timer"), (snapshot) => {
       if (snapshot.exists()) {
-        const newTimerData = snapshot.val();
-        const oldTimerData = { ...timerData.value };
+        const espTimer = snapshot.val();
 
-        // Update state lokal berdasarkan data dari ESP32
-        timerData.value = {
-          enabled: newTimerData.enabled || false,
-          duration: newTimerData.duration || 0,
-          remaining: newTimerData.remaining || 0,
-          completed: newTimerData.completed || false,
-          stopped_manually: newTimerData.stopped_manually || false,
-          remaining_before_stop: newTimerData.remaining_before_stop || 0,
-        };
-
-        // Deteksi TIMER COMPLETED (habis natural)
-        if (
-          newTimerData.completed === true &&
-          oldTimerData.completed !== true &&
-          newTimerData.remaining === 0
-        ) {
-          console.log("✅ TIMER COMPLETED NATURALLY!");
-          console.log("  Duration:", newTimerData.duration, "seconds");
-
-          isRunning.value = false;
-          isPaused.value = false;
+        // ✅ SYNC: Jika ESP32 me-report timer completed, tampilkan message
+        if (espTimer.completed === true && !timerData.value.completed) {
+          console.log("✅ ESP32 reports: Timer completed!");
+          timerData.value.completed = true;
           showCompletionMessage.value = true;
-          showStopMessage.value = false;
 
-          // Show completion notification
           if (
             "Notification" in window &&
             Notification.permission === "granted"
           ) {
             new Notification("Timer Selesai!", {
               body: `Timer telah selesai setelah ${formatDuration(
-                newTimerData.duration
+                timerData.value.duration
               )}`,
               icon: "/vite.svg",
             });
           }
 
-          // Auto hide message after 5 seconds
           if (completionTimeout) clearTimeout(completionTimeout);
           completionTimeout = window.setTimeout(() => {
             showCompletionMessage.value = false;
           }, 5000);
         }
 
-        // Deteksi TIMER STOPPED MANUALLY
+        // ✅ SYNC: Jika ESP32 me-report timer stopped manually
         if (
-          newTimerData.stopped_manually === true &&
-          oldTimerData.stopped_manually !== true &&
-          !newTimerData.enabled
+          espTimer.stopped_manually === true &&
+          !timerData.value.stopped_manually
         ) {
-          console.log("🛑 TIMER STOPPED MANUALLY!");
-          console.log("  Remaining:", oldTimerData.remaining, "seconds");
-
-          isRunning.value = false;
-          isPaused.value = false;
+          console.log(
+            "🛑 ESP32 reports: Timer stopped manually! Remaining:",
+            espTimer.remaining_before_stop
+          );
+          timerData.value.stopped_manually = true;
+          timerData.value.remaining_before_stop =
+            espTimer.remaining_before_stop || 0;
           showStopMessage.value = true;
-          showCompletionMessage.value = false;
 
-          // Show stop notification
           if (
             "Notification" in window &&
             Notification.permission === "granted"
           ) {
             new Notification("Timer Dihentikan", {
               body: `Timer dihentikan dengan sisa waktu ${formatDuration(
-                oldTimerData.remaining
+                espTimer.remaining_before_stop || 0
               )}`,
               icon: "/vite.svg",
             });
           }
 
-          // Auto hide message after 3 seconds
           if (stopTimeout) clearTimeout(stopTimeout);
           stopTimeout = window.setTimeout(() => {
             showStopMessage.value = false;
           }, 3000);
-        }
-
-        // Update UI state untuk running/paused
-        if (newTimerData.enabled) {
-          if (newTimerData.remaining > 0) {
-            isRunning.value = true;
-            isPaused.value = false;
-          } else {
-            isRunning.value = false;
-            isPaused.value = false;
-          }
-        } else {
-          // Timer tidak enabled - bisa completed atau stopped
-          if (!newTimerData.completed && !newTimerData.stopped_manually) {
-            isRunning.value = false;
-            isPaused.value = false;
-          }
-        }
-
-        // Log untuk debugging (hanya jika ada perubahan signifikan)
-        if (
-          newTimerData.enabled !== oldTimerData.enabled ||
-          Math.abs(newTimerData.remaining - oldTimerData.remaining) >= 5 ||
-          newTimerData.completed !== oldTimerData.completed ||
-          newTimerData.stopped_manually !== oldTimerData.stopped_manually
-        ) {
-          console.log("⏱️ Timer update from ESP32:", {
-            enabled: newTimerData.enabled,
-            duration: newTimerData.duration,
-            remaining: newTimerData.remaining,
-            completed: newTimerData.completed,
-            stopped_manually: newTimerData.stopped_manually,
-          });
         }
       }
     });
@@ -208,6 +156,67 @@ export const useTimerStore = defineStore("timer", () => {
     return parts.join(" ");
   };
 
+  // ✅ Start countdown di web
+  const startCountdown = async () => {
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+    }
+
+    countdownInterval = window.setInterval(async () => {
+      if (timerData.value.remaining > 0 && isRunning.value) {
+        timerData.value.remaining--;
+
+        // Sync ke Firebase setiap 1 detik agar ESP32 bisa monitor
+        await set(
+          dbRef(database, "timer/remaining"),
+          timerData.value.remaining
+        );
+
+        // Deteksi timer habis
+        if (timerData.value.remaining === 0) {
+          console.log("✅ Timer finished!");
+
+          timerData.value.completed = true;
+          isRunning.value = false;
+
+          // Notifikasi ke ESP32 bahwa timer completed
+          await set(dbRef(database, "timer"), {
+            enabled: false,
+            duration: timerData.value.duration,
+            remaining: 0,
+            completed: true,
+            stopped_manually: false,
+            remaining_before_stop: 0,
+          });
+
+          // Hentikan process pengeringan
+          // (ESP32 akan mendeteksi completed flag dan update status proses)
+
+          stopCountdown();
+          showCompletionMessage.value = true;
+
+          if (completionTimeout) clearTimeout(completionTimeout);
+          completionTimeout = window.setTimeout(() => {
+            showCompletionMessage.value = false;
+          }, 5000);
+        }
+
+        // Log setiap 10 detik
+        if (timerData.value.remaining % 10 === 0) {
+          console.log("⏱️ Timer:", formatDuration(timerData.value.remaining));
+        }
+      }
+    }, 1000);
+  };
+
+  // ✅ Stop countdown
+  const stopCountdown = () => {
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+  };
+
   const setTimer = async (hours: number, minutes: number, seconds: number) => {
     const totalSeconds = hours * 3600 + minutes * 60 + seconds;
 
@@ -216,7 +225,7 @@ export const useTimerStore = defineStore("timer", () => {
       return;
     }
 
-    console.log("⏱️ Setting timer:", {
+    console.log("⏱️ Setting timer from WEB:", {
       hours,
       minutes,
       seconds,
@@ -224,23 +233,7 @@ export const useTimerStore = defineStore("timer", () => {
     });
 
     try {
-      // Reset flags sebelum start
-      await set(dbRef(database, "timer"), {
-        enabled: true,
-        duration: totalSeconds,
-        remaining: totalSeconds,
-        completed: false,
-        stopped_manually: false,
-        remaining_before_stop: 0,
-      });
-
-      console.log("✅ Timer sent to ESP32");
-
-      // Reset local messages
-      showCompletionMessage.value = false;
-      showStopMessage.value = false;
-
-      // Update local state untuk UI feedback
+      // Reset flags dan set timer
       timerData.value = {
         enabled: true,
         duration: totalSeconds,
@@ -250,8 +243,26 @@ export const useTimerStore = defineStore("timer", () => {
         remaining_before_stop: 0,
       };
 
+      // Kirim ke Firebase agar ESP32 bisa monitor
+      await set(dbRef(database, "timer"), {
+        enabled: true,
+        duration: totalSeconds,
+        remaining: totalSeconds,
+        completed: false,
+        stopped_manually: false,
+        remaining_before_stop: 0,
+      });
+
+      console.log("✅ Timer sent to ESP32 and WEB countdown starting");
+
+      // Reset UI messages
+      showCompletionMessage.value = false;
+      showStopMessage.value = false;
+
+      // ✅ START COUNTDOWN DI WEB
       isRunning.value = true;
       isPaused.value = false;
+      await startCountdown();
     } catch (error) {
       console.error("❌ Error setting timer:", error);
     }
@@ -260,16 +271,24 @@ export const useTimerStore = defineStore("timer", () => {
   const pauseTimer = async () => {
     if (!isRunning.value) return;
 
-    console.log("⏸️ Pausing timer");
+    console.log("⏸️ Pausing timer from WEB");
 
     try {
-      // Set paused flag di Firebase
-      await set(dbRef(database, "timer/enabled"), false);
-
-      isPaused.value = true;
       isRunning.value = false;
+      isPaused.value = true;
+      stopCountdown(); // Stop countdown loop
 
-      console.log("✅ Timer paused");
+      // Update Firebase status
+      await set(dbRef(database, "timer"), {
+        enabled: false, // Disable di ESP32
+        duration: timerData.value.duration,
+        remaining: timerData.value.remaining,
+        completed: false,
+        stopped_manually: false,
+        remaining_before_stop: timerData.value.remaining,
+      });
+
+      console.log("✅ Timer paused, remaining:", timerData.value.remaining);
     } catch (error) {
       console.error("❌ Error pausing timer:", error);
     }
@@ -279,13 +298,12 @@ export const useTimerStore = defineStore("timer", () => {
     if (!isPaused.value || timerData.value.remaining <= 0) return;
 
     console.log(
-      "▶️ Resuming timer from:",
-      timerData.value.remaining,
-      "seconds"
+      "▶️ Resuming timer from WEB, remaining:",
+      timerData.value.remaining
     );
 
     try {
-      // Re-enable timer dengan remaining yang ada
+      // Update Firebase status
       await set(dbRef(database, "timer"), {
         enabled: true,
         duration: timerData.value.duration,
@@ -298,6 +316,9 @@ export const useTimerStore = defineStore("timer", () => {
       isRunning.value = true;
       isPaused.value = false;
 
+      // ✅ RESTART COUNTDOWN DI WEB
+      await startCountdown();
+
       console.log("✅ Timer resumed");
     } catch (error) {
       console.error("❌ Error resuming timer:", error);
@@ -305,24 +326,32 @@ export const useTimerStore = defineStore("timer", () => {
   };
 
   const stopTimer = async () => {
-    console.log("🛑 Stopping timer manually");
+    console.log("🛑 Stopping timer from WEB");
 
     try {
-      // Mark sebagai manual stop dan reset timer
+      stopCountdown(); // Stop countdown loop
+
+      const remainingBeforeStop = timerData.value.remaining;
+
+      // Update Firebase untuk notifikasi ESP32
       await set(dbRef(database, "timer"), {
         enabled: false,
-        duration: 0,
+        duration: timerData.value.duration,
         remaining: 0,
         completed: false,
         stopped_manually: true,
-        remaining_before_stop: timerData.value.remaining, // Save remaining
+        remaining_before_stop: remainingBeforeStop,
       });
 
       // Reset local state
       isRunning.value = false;
       isPaused.value = false;
+      timerData.value.remaining = 0;
 
-      console.log("✅ Timer stopped manually");
+      console.log(
+        "✅ Timer stopped manually, remaining was:",
+        remainingBeforeStop
+      );
     } catch (error) {
       console.error("❌ Error stopping timer:", error);
     }
