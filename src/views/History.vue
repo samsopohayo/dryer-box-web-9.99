@@ -1,4 +1,5 @@
 <template>
+  <FloatingQnA />
   <!-- Spacer for header height -->
   <div class="h-[95px]"></div>
 
@@ -730,6 +731,7 @@ import Header from "@/components/Header.vue";
 import Sidebar from "@/components/Sidebar.vue";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import FloatingQnA from "@/components/FloatingQnA.vue";
 
 const dryerStore = useDryerStore();
 const isSidebarCollapsed = ref(true);

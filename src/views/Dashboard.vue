@@ -1,4 +1,5 @@
 <template>
+  <FloatingQnA />
   <!-- Spacer for header height -->
   <div class="h-[95px]"></div>
 
@@ -155,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h } from "vue";
+import { ref, computed } from "vue";
 import { useDryerStore } from "@/stores/dryer";
 import { useLocationStore } from "@/stores/location";
 import Header from "@/components/Header.vue";
@@ -164,6 +165,7 @@ import InformationCard from "@/components/InformationCard.vue";
 import SensorCard from "@/components/SensorCard.vue";
 import StatusCard from "@/components/StatusCard.vue";
 import ChartMonitoring from "@/components/ChartMonitoring.vue";
+import FloatingQnA from "@/components/FloatingQnA.vue";
 
 const dryerStore = useDryerStore();
 const locationStore = useLocationStore();
@@ -207,85 +209,9 @@ const lastUpdateText = computed(() => {
   return lastUpdate;
 });
 
-// Weather display
-const weatherDisplay = computed(() => {
-  const desc = locationStore.weather.description;
-  return desc.charAt(0).toUpperCase() + desc.slice(1);
-});
-
-// Weather icon component
-const weatherIcon = computed(() => {
-  const condition = locationStore.weather.condition;
-
-  if (condition === "cerah") {
-    return h(
-      "svg",
-      {
-        fill: "none",
-        stroke: "currentColor",
-        viewBox: "0 0 24 24",
-      },
-      [
-        h("path", {
-          "stroke-linecap": "round",
-          "stroke-linejoin": "round",
-          "stroke-width": "2",
-          d: "M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z",
-        }),
-      ]
-    );
-  } else if (condition === "berawan") {
-    return h(
-      "svg",
-      {
-        fill: "none",
-        stroke: "currentColor",
-        viewBox: "0 0 24 24",
-      },
-      [
-        h("path", {
-          "stroke-linecap": "round",
-          "stroke-linejoin": "round",
-          "stroke-width": "2",
-          d: "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z",
-        }),
-      ]
-    );
-  } else {
-    // hujan
-    return h(
-      "svg",
-      {
-        fill: "none",
-        stroke: "currentColor",
-        viewBox: "0 0 24 24",
-      },
-      [
-        h("path", {
-          "stroke-linecap": "round",
-          "stroke-linejoin": "round",
-          "stroke-width": "2",
-          d: "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z",
-        }),
-        h("path", {
-          "stroke-linecap": "round",
-          "stroke-linejoin": "round",
-          "stroke-width": "2",
-          d: "M8 19l-1 3m4-3l-1 3m4-3l-1 3m4-3l-1 3",
-        }),
-      ]
-    );
-  }
-});
-
 // Control mode
 const isAutoMode = computed(() => {
   return dryerStore.controlData.auto_mode !== false;
-});
-
-// Collector fan status
-const showCollectorStatus = computed(() => {
-  return dryerStore.statusData.pengeringan === "Berjalan" && isConnected.value;
 });
 
 const collectorActive = computed(() => {
