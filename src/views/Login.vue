@@ -1,4 +1,4 @@
-// FILE: src/views/Login.vue (UPDATED with Forgot Password link) //
+// FILE: src/views/Login.vue (UPDATED with Reset Button) //
 ============================================
 <template>
   <div
@@ -52,13 +52,22 @@
           {{ authStore.error }}
         </div>
 
-        <button
-          type="submit"
-          :disabled="isLoading"
-          class="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {{ isLoading ? "Memproses..." : "Masuk" }}
-        </button>
+        <div class="flex gap-3">
+          <button
+            type="button"
+            @click="handleReset"
+            class="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition"
+          >
+            Reset
+          </button>
+          <button
+            type="submit"
+            :disabled="isLoading"
+            class="flex-1 bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {{ isLoading ? "Memproses..." : "Masuk" }}
+          </button>
+        </div>
       </form>
 
       <div class="mt-6 text-center">
@@ -94,5 +103,11 @@ const handleLogin = async () => {
   } finally {
     isLoading.value = false;
   }
+};
+
+const handleReset = () => {
+  email.value = "";
+  password.value = "";
+  authStore.error = null;
 };
 </script>

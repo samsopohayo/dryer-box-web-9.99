@@ -43,7 +43,12 @@ export const useAuthStore = defineStore("auth", () => {
     try {
       error.value = null;
       await createUserWithEmailAndPassword(auth, email, password);
-      router.push("/dashboard");
+
+      // Firebase otomatis login setelah registrasi
+      // Logout dulu agar user harus login manual
+      await signOut(auth);
+
+      router.push("/login");
     } catch (e: any) {
       error.value = getErrorMessage(e.code);
       throw e;

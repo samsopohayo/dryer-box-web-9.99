@@ -1,4 +1,5 @@
-// FILE: src/views/Register.vue // ============================================
+// FILE: src/views/Register.vue (UPDATED with Reset Button) //
+============================================
 <template>
   <div
     class="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-gray-100"
@@ -58,13 +59,22 @@
           {{ error }}
         </div>
 
-        <button
-          type="submit"
-          :disabled="isLoading"
-          class="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {{ isLoading ? "Memproses..." : "Daftar" }}
-        </button>
+        <div class="flex gap-3">
+          <button
+            type="button"
+            @click="handleReset"
+            class="flex-1 bg-primary text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition"
+          >
+            Reset
+          </button>
+          <button
+            type="submit"
+            :disabled="isLoading"
+            class="flex-1 bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {{ isLoading ? "Memproses..." : "Daftar" }}
+          </button>
+        </div>
       </form>
 
       <div class="mt-6 text-center">
@@ -116,5 +126,12 @@ const handleRegister = async () => {
   } finally {
     isLoading.value = false;
   }
+};
+
+const handleReset = () => {
+  email.value = "";
+  password.value = "";
+  confirmPassword.value = "";
+  authStore.error = null;
 };
 </script>
